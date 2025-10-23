@@ -14,20 +14,11 @@ class MainNavigationScreen extends ConsumerStatefulWidget {
 class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  // List of screens for bottom navigation
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const HistoryPage(),
-    const _StakeScreen(), // Placeholder for now
-    const _CardScreen(), // Placeholder for now
-    const _DiscoverScreen(), // Placeholder for now
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
-      body: _screens[_selectedIndex],
+      body: _getCurrentScreen(),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF0A0A0A),
         selectedItemColor: const Color(0xFFFF6B35),
@@ -63,6 +54,23 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
         ],
       ),
     );
+  }
+
+  Widget _getCurrentScreen() {
+    switch (_selectedIndex) {
+      case 0:
+        return const HomeScreen();
+      case 1:
+        return const HistoryPage();
+      case 2:
+        return const _StakeScreen();
+      case 3:
+        return const _CardScreen();
+      case 4:
+        return const _DiscoverScreen();
+      default:
+        return const HomeScreen();
+    }
   }
 }
 

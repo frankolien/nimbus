@@ -3,14 +3,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/buy_provider.dart';
 import '../widgets/asset_selection_modal.dart';
-import '../widgets/numeric_keypad.dart';
 import '../widgets/payment_method_modal.dart';
+import 'payment_method_selection_screen.dart';
+import '../../../../shared/services/crypto_price_service.dart';
 
-class BuyPage extends ConsumerWidget {
+class BuyPage extends ConsumerStatefulWidget {
   const BuyPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BuyPage> createState() => _BuyPageState();
+}
+
+class _BuyPageState extends ConsumerState<BuyPage> {
+  final TextEditingController _amountController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with current amount
+    final buyState = ref.read(buyNotifierProvider);
+    _amountController.text = buyState.usdAmount;
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final buyState = ref.watch(buyNotifierProvider);
     final buyNotifier = ref.read(buyNotifierProvider.notifier);
 
@@ -32,6 +54,10 @@ class BuyPage extends ConsumerWidget {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () => _refreshPrices(),
+          ),
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white),
             onPressed: () => Navigator.of(context).pop(),
@@ -59,10 +85,6 @@ class BuyPage extends ConsumerWidget {
                       ),
                       // Asset Selection Card
                       _buildAssetSelectionCard(buyState, buyNotifier),
-                      const SizedBox(height: 24),
-
-                      // Payment Method Card
-                      _buildPaymentMethodCard(buyState, buyNotifier),
                     ],
                   ),
                 ),
@@ -100,32 +122,50 @@ class BuyPage extends ConsumerWidget {
   Widget _buildAmountSection(BuyStateData state, BuyNotifier notifier) {
     return Column(
       children: [
+        // USD Amount Input Field
+        TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(
+            color: Color(0xFFFF6B35),
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+          decoration: const InputDecoration(
+            hintText: '0.00',
+            hintStyle: TextStyle(
+              color: Color(0xFF666666),
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+            suffixText: 'USD',
+            suffixStyle: TextStyle(
+              color: Color(0xFFFF6B35),
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+            filled: true,
+            fillColor: Colors.black,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onChanged: (value) {
+            // Update the amount when user types
+            notifier.updateAmount(value.isEmpty ? '0' : value);
+          },
+        ),
+        const SizedBox(height: 8),
+        // Crypto Amount Display
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${state.usdAmount} USD',
-                    style: const TextStyle(
-                      color: Color(0xFFFF6B35),
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    state.selectedAsset != null
-                        ? '${state.cryptoAmount.toStringAsFixed(6)} ${state.selectedAsset!.symbol}'
-                        : '0.000000 SOL',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
+            Text(
+              '${state.cryptoAmount.toStringAsFixed(6)} ${state.selectedAsset?.symbol ?? 'SOL'}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
               ),
             ),
             IconButton(
@@ -200,91 +240,28 @@ class BuyPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildPaymentMethodCard(BuyStateData state, BuyNotifier notifier) {
-    return GestureDetector(
-      onTap: notifier.togglePaymentMethodModal,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF333333)),
-        ),
-        child: Row(
-          children: [
-            // Payment Method Icon
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF444444),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.payment,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Payment Method Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    state.selectedPaymentMethod?.name ??
-                        'Choose payment method',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    state.selectedPaymentMethod?.description ??
-                        'Select how you want to pay',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Arrow Icon
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white70,
-              size: 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildConfirmButton(
       BuyStateData state, BuyNotifier notifier, BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       child: ElevatedButton(
-        onPressed: state.canConfirm
+        onPressed: state.canProceedToPayment
             ? () {
-                // TODO: Implement buy confirmation
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Buy order placed successfully!'),
-                    backgroundColor: Color(0xFFFF6B35),
+                // Navigate to payment method selection screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentMethodSelectionScreen(
+                      usdAmount: state.usdAmount,
+                      selectedAsset: state.selectedAsset!,
+                    ),
                   ),
                 );
               }
             : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: state.canConfirm
+          backgroundColor: state.canProceedToPayment
               ? const Color(0xFFFF6B35)
               : const Color(0xFF444444),
           foregroundColor: Colors.white,
@@ -294,12 +271,26 @@ class BuyPage extends ConsumerWidget {
           ),
         ),
         child: const Text(
-          'Confirm',
+          'Continue',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+
+  void _refreshPrices() {
+    // Refresh crypto prices
+    ref.invalidate(cryptoPricesProvider);
+
+    // Show refresh feedback
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Refreshing prices...'),
+        backgroundColor: Color(0xFFFF6B35),
+        duration: Duration(seconds: 1),
       ),
     );
   }

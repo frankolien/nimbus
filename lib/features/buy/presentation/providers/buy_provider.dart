@@ -9,7 +9,17 @@ part 'buy_provider.g.dart';
 class BuyNotifier extends _$BuyNotifier {
   @override
   BuyStateData build() {
-    return const BuyStateData();
+    // Start with a default asset, will be updated with real-time prices
+    return const BuyStateData(
+      selectedAsset: CryptoAsset(
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        iconPath: 'assets/images/bitcoin.png',
+        category: 'cryptocurrency',
+        price: 0.0, // Will be updated with real-time price
+        balance: 0.0,
+      ),
+    );
   }
 
   void updateAmount(String amount) {
@@ -89,7 +99,14 @@ class BuyStateData {
 
   double get cryptoAmount {
     if (selectedAsset == null) return 0.0;
-    return double.tryParse(usdAmount) ?? 0.0 / selectedAsset!.price;
+    return (double.tryParse(usdAmount) ?? 0.0) / selectedAsset!.price;
+  }
+
+  bool get canProceedToPayment {
+    return usdAmount != '0' &&
+        double.tryParse(usdAmount) != null &&
+        double.parse(usdAmount) > 0 &&
+        selectedAsset != null;
   }
 
   bool get canConfirm {

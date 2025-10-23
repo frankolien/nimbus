@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/crypto_asset.dart';
+import '../../../../shared/services/crypto_price_service.dart';
 
-class AssetSelectionModal extends StatelessWidget {
+class AssetSelectionModal extends ConsumerWidget {
   final Function(CryptoAsset) onAssetSelected;
   final VoidCallback onClose;
 
@@ -13,7 +15,9 @@ class AssetSelectionModal extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cryptoPrices = ref.watch(cryptoPricesProvider);
+
     return Container(
       color: Colors.black54,
       child: Center(
@@ -28,7 +32,7 @@ class AssetSelectionModal extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header
-              _buildHeader(),
+              _buildHeader(context, ref),
 
               // Search Bar
               _buildSearchBar(),
@@ -37,7 +41,7 @@ class AssetSelectionModal extends StatelessWidget {
               _buildCategoryFilters(),
 
               // Asset List
-              _buildAssetList(),
+              _buildAssetList(cryptoPrices),
             ],
           ),
         ),
@@ -45,7 +49,7 @@ class AssetSelectionModal extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -64,9 +68,17 @@ class AssetSelectionModal extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: onClose,
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                onPressed: () => _refreshPrices(context, ref),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: onClose,
+              ),
+            ],
           ),
         ],
       ),
@@ -74,14 +86,8 @@ class AssetSelectionModal extends StatelessWidget {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0A0A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF333333)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
       child: const TextField(
         style: TextStyle(color: Colors.white),
         decoration: InputDecoration(
@@ -125,18 +131,53 @@ class AssetSelectionModal extends StatelessWidget {
     );
   }
 
-  Widget _buildAssetList() {
-    final assets = _getMockAssets();
-
+  Widget _buildAssetList(AsyncValue<List<CryptoPrice>> cryptoPrices) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: assets.length,
-        itemBuilder: (context, index) {
-          final asset = assets[index];
-          return _buildAssetItem(asset);
-        },
+      child: cryptoPrices.when(
+        data: (prices) => ListView.builder(
+          shrinkWrap: true,
+          itemCount: prices.length,
+          itemBuilder: (context, index) {
+            final cryptoPrice = prices[index];
+            final asset = _convertCryptoPriceToAsset(cryptoPrice);
+            return _buildAssetItem(asset);
+          },
+        ),
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6B35)),
+            ),
+          ),
+        ),
+        error: (error, stackTrace) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.red,
+                  size: 48,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Error loading prices',
+                  style: const TextStyle(color: Colors.red),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    // Retry loading prices
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -171,6 +212,14 @@ class AssetSelectionModal extends StatelessWidget {
           fontSize: 14,
         ),
       ),
+      trailing: Text(
+        '\$${asset.price.toStringAsFixed(2)}',
+        style: const TextStyle(
+          color: Color(0xFFFF6B35),
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       onTap: () {
         onAssetSelected(asset);
         onClose();
@@ -178,64 +227,28 @@ class AssetSelectionModal extends StatelessWidget {
     );
   }
 
-  List<CryptoAsset> _getMockAssets() {
-    return [
-      const CryptoAsset(
-        symbol: 'SOL',
-        name: 'Solana',
-        iconPath: '',
-        category: 'Solana',
-        price: 100.0,
-        balance: 0.0,
+  CryptoAsset _convertCryptoPriceToAsset(CryptoPrice cryptoPrice) {
+    return CryptoAsset(
+      symbol: cryptoPrice.symbol,
+      name: cryptoPrice.name,
+      iconPath: cryptoPrice.imageUrl,
+      category: 'cryptocurrency',
+      price: cryptoPrice.price,
+      balance: cryptoPrice.balance,
+    );
+  }
+
+  void _refreshPrices(BuildContext context, WidgetRef ref) {
+    // Refresh crypto prices
+    ref.invalidate(cryptoPricesProvider);
+
+    // Show refresh feedback
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Refreshing prices...'),
+        backgroundColor: Color(0xFFFF6B35),
+        duration: Duration(seconds: 1),
       ),
-      const CryptoAsset(
-        symbol: 'USDT',
-        name: 'Tether',
-        iconPath: '',
-        category: 'Stablecoin',
-        price: 1.0,
-        balance: 0.0,
-      ),
-      const CryptoAsset(
-        symbol: 'USDC',
-        name: 'USD Coin',
-        iconPath: '',
-        category: 'Stablecoin',
-        price: 1.0,
-        balance: 0.0,
-      ),
-      const CryptoAsset(
-        symbol: 'LINK',
-        name: 'Chainlink',
-        iconPath: '',
-        category: 'DeFi',
-        price: 15.0,
-        balance: 0.0,
-      ),
-      const CryptoAsset(
-        symbol: 'PYUSD',
-        name: 'Paypal USD',
-        iconPath: '',
-        category: 'Stablecoin',
-        price: 1.0,
-        balance: 0.0,
-      ),
-      const CryptoAsset(
-        symbol: 'JUP',
-        name: 'Jupiter',
-        iconPath: '',
-        category: 'DeFi',
-        price: 0.5,
-        balance: 0.0,
-      ),
-      const CryptoAsset(
-        symbol: 'RAY',
-        name: 'Raydium',
-        iconPath: '',
-        category: 'DeFi',
-        price: 2.0,
-        balance: 0.0,
-      ),
-    ];
+    );
   }
 }

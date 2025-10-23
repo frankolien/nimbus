@@ -8,11 +8,16 @@ import 'package:nimbus/features/send/presentation/pages/send_page.dart';
 import 'package:nimbus/features/receive/presentation/pages/receive_page.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
@@ -56,6 +61,10 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () => _refreshData(),
+          ),
           IconButton(
             icon: const Icon(Icons.headset_mic, color: Colors.white),
             onPressed: () {},
@@ -369,6 +378,23 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _refreshData() {
+    // Refresh crypto prices
+    ref.invalidate(cryptoPricesRefreshProvider);
+
+    // Refresh wallet data
+    ref.invalidate(currentWalletAddressProvider);
+
+    // Show refresh feedback
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Refreshing data...'),
+        backgroundColor: Color(0xFFFF6B35),
+        duration: Duration(seconds: 1),
       ),
     );
   }
