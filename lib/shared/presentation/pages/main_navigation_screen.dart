@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/shared/presentation/pages/home_screen.dart';
 import 'package:nimbus/features/history/presentation/pages/history_page.dart';
+import 'package:nimbus/features/stake/presentation/pages/stake_page.dart';
 
 class MainNavigationScreen extends ConsumerStatefulWidget {
   const MainNavigationScreen({super.key});
@@ -63,7 +64,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
       case 1:
         return const HistoryPage();
       case 2:
-        return const _StakeScreen();
+        return const StakePage();
       case 3:
         return const _CardScreen();
       case 4:
@@ -75,28 +76,6 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
 }
 
 // Placeholder Screens
-class _StakeScreen extends StatelessWidget {
-  const _StakeScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0A0A),
-        elevation: 0,
-        title: const Text('Stake'),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: const Center(
-        child: Text(
-          'Staking Coming Soon!',
-          style: TextStyle(color: Colors.white, fontSize: 24),
-        ),
-      ),
-    );
-  }
-}
 
 class _CardScreen extends StatelessWidget {
   const _CardScreen();
