@@ -116,7 +116,7 @@ class _TokenDetailScreenState extends ConsumerState<TokenDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Price Section
-            Padding(
+            /*Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,15 +160,11 @@ class _TokenDetailScreenState extends ConsumerState<TokenDetailScreen> {
                   ),
                 ],
               ),
-            ),
+            ),*/
 
             // Real-time Price Chart
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: CoinGeckoSparkline(
                 symbol: _getCoinGeckoSymbol(widget.crypto.symbol),
                 pollInterval: const Duration(minutes: 1),
