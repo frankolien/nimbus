@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
+import 'blockchain_balance_service.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import '../../core/configs/api_keys.dart';
 
 class CryptoPrice {
   final String symbol;
@@ -39,11 +41,15 @@ class CryptoPriceService {
       // Get real wallet balances
       final walletBalances = await _getWalletBalances(walletAddress);
 
-      // Try to fetch from CoinGecko API first (free, no API key required)
+      // Try to fetch from CoinGecko API first
       try {
+        final apiKey = ApiKeys.coinGeckoApiKey != 'your_coingecko_api_key_here'
+            ? '&x_cg_demo_api_key=${ApiKeys.coinGeckoApiKey}'
+            : '';
+
         final response = await _client.get(
           Uri.parse(
-              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true'),
+              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true$apiKey'),
         );
 
         if (response.statusCode == 200) {

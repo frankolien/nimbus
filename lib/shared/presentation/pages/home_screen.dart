@@ -9,6 +9,7 @@ import 'package:nimbus/features/receive/presentation/pages/receive_page.dart';
 import 'package:nimbus/features/withdraw/presentation/pages/withdraw_page.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:nimbus/features/wallet/presentation/pages/wallet_settings_screen.dart';
+import 'package:nimbus/features/buy/presentation/pages/purchase_status_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -73,14 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const WalletSettingsScreen(),
-                ),
-              );
-            },
+            onPressed: () => _showMenu(context),
           ),
         ],
       ),
@@ -408,6 +402,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         content: Text('Refreshing data...'),
         backgroundColor: Color(0xFFFF6B35),
         duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Menu',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Purchase Status
+            ListTile(
+              leading:
+                  const Icon(Icons.shopping_cart, color: Color(0xFFFF6B35)),
+              title: const Text(
+                'Purchase Status',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'View your crypto purchases',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PurchaseStatusScreen(),
+                  ),
+                );
+              },
+            ),
+
+            // Wallet Settings
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.white70),
+              title: const Text(
+                'Wallet Settings',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'Manage your wallet',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WalletSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
