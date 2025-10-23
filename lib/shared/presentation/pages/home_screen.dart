@@ -6,6 +6,7 @@ import 'package:nimbus/features/exchange/presentation/pages/swap_screen.dart';
 import 'package:nimbus/features/buy/presentation/pages/buy_page.dart';
 import 'package:nimbus/features/send/presentation/pages/send_page.dart';
 import 'package:nimbus/features/receive/presentation/pages/receive_page.dart';
+import 'package:nimbus/features/withdraw/presentation/pages/withdraw_page.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -143,7 +144,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   );
                 }),
                 _buildQuickAction(Icons.account_balance, 'Withdraw', () {
-                  // TODO: Implement withdraw functionality
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const WithdrawPage()),
+                  );
                 }),
               ],
             ),

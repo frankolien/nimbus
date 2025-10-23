@@ -36,7 +36,9 @@ class _RequestAmountScreenState extends ConsumerState<RequestAmountScreen> {
           _buildAmountDisplay(receiveState, receiveNotifier),
 
           const SizedBox(height: 32),
-          Divider(),
+          Divider(
+            color: Color(0xFF333333),
+          ),
           const SizedBox(height: 32),
 
           // Asset Selection

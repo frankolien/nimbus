@@ -18,6 +18,7 @@ class _ReceivePageState extends ConsumerState<ReceivePage> {
   @override
   Widget build(BuildContext context) {
     final receiveState = ref.watch(receiveNotifierProvider);
+    final receiveNotifier = ref.read(receiveNotifierProvider.notifier);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
@@ -26,7 +27,13 @@ class _ReceivePageState extends ConsumerState<ReceivePage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (receiveState.currentStep == ReceiveStep.assetSelection) {
+              Navigator.of(context).pop();
+            } else {
+              receiveNotifier.previousStep();
+            }
+          },
         ),
         title: Text(
           _getAppBarTitle(receiveState.currentStep),

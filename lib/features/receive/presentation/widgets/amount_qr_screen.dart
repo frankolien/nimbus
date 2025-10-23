@@ -15,48 +15,49 @@ class AmountQRScreen extends ConsumerWidget {
     // Mock asset data - in real app, this would come from a service
     final assetData = _getAssetData(receiveState.selectedAsset);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          // Asset Logo
-          _buildAssetLogo(receiveState.selectedAsset),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Asset Logo
+            _buildAssetLogo(receiveState.selectedAsset),
 
-          const SizedBox(height: 24),
-          Container(
-            decoration: BoxDecoration(
-              color: Color(0xFF2C2D30),
-              borderRadius: BorderRadius.circular(24),
+            const SizedBox(height: 24),
+            Container(
+              decoration: BoxDecoration(
+                color: Color(0xFF2C2D30),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  // Warning Message
+                  _buildWarningMessage(receiveState.selectedAsset),
+
+                  const SizedBox(height: 10),
+
+                  // Address Display
+                  _buildAddressDisplay(assetData, context),
+
+                  const SizedBox(height: 10),
+
+                  // QR Code
+                  _buildQRCode(assetData, receiveState),
+
+                  const SizedBox(height: 10),
+
+                  // Balance Display
+                  _buildBalanceDisplay(assetData),
+                ],
+              ),
             ),
-            padding: EdgeInsets.all(24),
-            child: Column(
-              children: [
-                // Warning Message
-                _buildWarningMessage(receiveState.selectedAsset),
+            const SizedBox(height: 20),
 
-                const SizedBox(height: 24),
-
-                // Address Display
-                _buildAddressDisplay(assetData, context),
-
-                const SizedBox(height: 32),
-
-                // QR Code
-                _buildQRCode(assetData, receiveState),
-
-                const SizedBox(height: 32),
-
-                // Balance Display
-                _buildBalanceDisplay(assetData),
-
-                const SizedBox(height: 40),
-              ],
-            ),
-          ),
-
-          // Share Button
-          _buildShareButton(context),
-        ],
+            // Share Button
+            _buildShareButton(context),
+          ],
+        ),
       ),
     );
   }
@@ -234,7 +235,7 @@ class AmountQRScreen extends ConsumerWidget {
       child: QrImageView(
         data: qrData,
         version: QrVersions.auto,
-        size: 250.0,
+        size: 200.0,
         backgroundColor: Colors.white,
       ),
     );
@@ -265,21 +266,36 @@ class AmountQRScreen extends ConsumerWidget {
   }
 
   Widget _buildShareButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _shareRequest(context),
-        icon: const Icon(Icons.share, color: Colors.white),
-        label: const Text(
-          'Share',
-          style: TextStyle(color: Colors.white),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFF6B35),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+    return Center(
+      child: GestureDetector(
+        onTap: () => _shareRequest(context),
+        child: Column(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2C),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.ios_share,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Share',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
