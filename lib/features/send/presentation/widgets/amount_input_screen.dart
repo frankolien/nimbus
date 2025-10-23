@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/send_provider.dart';
+import '../../../../shared/services/crypto_price_service.dart';
 
 class AmountInputScreen extends ConsumerStatefulWidget {
   const AmountInputScreen({super.key});
@@ -29,6 +30,15 @@ class _AmountInputScreenState extends ConsumerState<AmountInputScreen> {
   Widget build(BuildContext context) {
     final sendState = ref.watch(sendNotifierProvider);
     final sendNotifier = ref.read(sendNotifierProvider.notifier);
+
+    // Watch for crypto price changes and update USD amount
+    ref.listen<AsyncValue<List<CryptoPrice>>>(cryptoPricesRefreshProvider,
+        (previous, next) {
+      if (next.hasValue && sendState.amount.isNotEmpty) {
+        // Recalculate USD amount when prices change
+        sendNotifier.updateAmount(sendState.amount);
+      }
+    });
 
     return Column(
       children: [

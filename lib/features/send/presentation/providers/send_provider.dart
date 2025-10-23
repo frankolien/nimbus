@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:nimbus/shared/services/crypto_price_service.dart';
 
 part 'send_provider.g.dart';
 
@@ -154,7 +155,26 @@ class SendNotifier extends _$SendNotifier {
 
   double _calculateUsdAmount(String solAmount) {
     final sol = double.tryParse(solAmount) ?? 0.0;
-    // SOL price is approximately $138.52 based on the mockup
-    return sol * 138.52;
+
+    // Get real-time SOL price from crypto price service
+    final cryptoPrices = ref.read(cryptoPricesRefreshProvider).value;
+    if (cryptoPrices != null) {
+      final solPrice = cryptoPrices.firstWhere(
+        (price) => price.symbol == 'SOL',
+        orElse: () => CryptoPrice(
+          symbol: 'SOL',
+          name: 'Solana',
+          price: 190.0, // Fallback price
+          change24h: 0.0,
+          imageUrl: '',
+          balance: 0.0,
+          balanceValue: 0.0,
+        ),
+      );
+      return sol * solPrice.price;
+    }
+
+    // Fallback to approximate current SOL price if service is unavailable
+    return sol * 190.0;
   }
 }
