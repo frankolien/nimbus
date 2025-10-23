@@ -2,8 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/entities/wallet.dart';
 import '../../../../shared/entities/token.dart';
+import '../../data/services/custodial_wallet_service.dart';
 
 part 'wallet_provider.g.dart';
+
+// Custodial wallet service provider
+final custodialWalletServiceProvider = Provider<CustodialWalletService>((ref) {
+  return CustodialWalletService();
+});
 
 // Wallet state
 @riverpod
@@ -17,23 +23,39 @@ class WalletState extends _$WalletState {
     state = const AsyncValue.loading();
 
     try {
-      // Mock wallet connection for now
-      await Future.delayed(const Duration(seconds: 1));
+      // Get custodial wallet service
+      final custodialService = ref.read(custodialWalletServiceProvider);
+
+      // For now, use a mock user ID - in production this would come from auth
+      const userId = 'user_123';
+
+      // Create or load custodial wallet
+      final custodialWallet = await custodialService.getOrCreateWallet(userId);
+
+      // Get wallet balance
+      final balance = await custodialService.getWalletBalance(userId);
+
+      // Create wallet entity
       final wallet = Wallet(
-        address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
-        balance: 0.0, // Will be updated with real token balances
+        address: custodialWallet.address,
+        balance: balance,
         isConnected: true,
       );
+
       state = AsyncValue.data(wallet);
+      print('✅ Custodial wallet connected: ${wallet.address}');
     } catch (error, stackTrace) {
+      print('❌ Custodial wallet connection failed: $error');
       state = AsyncValue.error(error, stackTrace);
     }
   }
 
   Future<void> disconnectWallet() async {
     try {
-      // Implement disconnect logic
+      // For custodial wallets, we don't actually "disconnect"
+      // We just clear the local state
       state = const AsyncValue.data(null);
+      print('✅ Custodial wallet disconnected');
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }

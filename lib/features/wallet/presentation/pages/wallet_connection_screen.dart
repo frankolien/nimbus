@@ -18,11 +18,20 @@ class _WalletConnectionScreenState
     try {
       final walletStateNotifier = ref.read(walletStateProvider.notifier);
       await walletStateNotifier.connectWallet();
+
+      // Navigate to main app after successful connection
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MainNavigationScreen(),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Wallet connection failed: ${e.toString()}'),
+            content: Text('Wallet setup failed: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -86,7 +95,7 @@ class _WalletConnectionScreenState
               const SizedBox(height: 32),
 
               const Text(
-                'Connect Your Wallet',
+                'Setup Your Wallet',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -96,7 +105,7 @@ class _WalletConnectionScreenState
               const SizedBox(height: 16),
 
               const Text(
-                'Connect your preferred crypto wallet to Nimbus for secure transactions and asset management.',
+                'Nimbus will create a secure wallet for you. Your private keys are encrypted and stored safely on your device.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -154,7 +163,7 @@ class _WalletConnectionScreenState
                               ),
                             )
                           : const Text(
-                              'Connect Wallet',
+                              'Create Wallet',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,

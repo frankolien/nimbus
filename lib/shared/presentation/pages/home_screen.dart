@@ -8,6 +8,7 @@ import 'package:nimbus/features/send/presentation/pages/send_page.dart';
 import 'package:nimbus/features/receive/presentation/pages/receive_page.dart';
 import 'package:nimbus/features/withdraw/presentation/pages/withdraw_page.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:nimbus/features/wallet/presentation/pages/wallet_settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -72,7 +73,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const WalletSettingsScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

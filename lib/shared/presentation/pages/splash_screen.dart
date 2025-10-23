@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nimbus/features/auth/presentation/pages/login_screen.dart';
-import 'package:nimbus/features/auth/presentation/pages/passcode_setup_screen.dart';
-import 'package:nimbus/features/auth/data/services/local_auth_service.dart';
+import 'package:nimbus/features/wallet/presentation/pages/wallet_connection_screen.dart';
+import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:nimbus/features/wallet/domain/entities/wallet.dart';
+import 'package:nimbus/shared/presentation/pages/main_navigation_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -12,33 +13,70 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _hasNavigated = false;
+
   @override
   void initState() {
     super.initState();
-    _checkAuthAndNavigate();
+    _checkWalletAndNavigate();
   }
 
-  _checkAuthAndNavigate() async {
+  _checkWalletAndNavigate() async {
     await Future.delayed(const Duration(seconds: 2));
 
-    if (mounted) {
-      final authService = ref.read(localAuthServiceProvider);
-      final isSetup = await authService.isAuthSetup();
+    if (mounted && !_hasNavigated) {
+      // Try to load existing wallet first
+      final walletStateNotifier = ref.read(walletStateProvider.notifier);
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                isSetup ? const LoginScreen() : const PasscodeSetupScreen(),
-          ),
-        );
+      try {
+        // Attempt to connect to existing wallet
+        await walletStateNotifier.connectWallet();
+
+        // The listener will handle navigation when the state updates
+        print('🔍 Attempted to connect wallet, waiting for state update...');
+      } catch (e) {
+        print('⚠️ Error loading wallet on startup: $e');
+        if (mounted && !_hasNavigated) {
+          _hasNavigated = true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WalletConnectionScreen(),
+            ),
+          );
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Listen for wallet state changes
+    ref.listen<AsyncValue<Wallet?>>(walletStateProvider, (previous, next) {
+      if (_hasNavigated) return;
+
+      if (next.hasValue && next.value != null) {
+        _hasNavigated = true;
+        print('✅ Wallet connected via listener, navigating to main app');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const MainNavigationScreen(),
+          ),
+        );
+      } else if (next.hasError) {
+        _hasNavigated = true;
+        print(
+            '❌ Wallet connection failed via listener, navigating to wallet creation');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WalletConnectionScreen(),
+          ),
+        );
+      }
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: Center(
