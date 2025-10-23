@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/shared/presentation/pages/home_screen.dart';
+import 'package:nimbus/shared/presentation/pages/discover_screen.dart';
 import 'package:nimbus/features/history/presentation/pages/history_page.dart';
 import 'package:nimbus/features/stake/presentation/pages/stake_page.dart';
 
@@ -68,7 +69,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
       case 3:
         return const _CardScreen();
       case 4:
-        return const _DiscoverScreen();
+        return const DiscoverScreen();
       default:
         return const HomeScreen();
     }
@@ -93,29 +94,6 @@ class _CardScreen extends StatelessWidget {
       body: const Center(
         child: Text(
           'Crypto Card Coming Soon!',
-          style: TextStyle(color: Colors.white, fontSize: 24),
-        ),
-      ),
-    );
-  }
-}
-
-class _DiscoverScreen extends StatelessWidget {
-  const _DiscoverScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0A0A),
-        elevation: 0,
-        title: const Text('Discover'),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: const Center(
-        child: Text(
-          'Discover Coming Soon!',
           style: TextStyle(color: Colors.white, fontSize: 24),
         ),
       ),
