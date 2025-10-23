@@ -37,6 +37,7 @@ dependencies:
   equatable: ^2.0.5
   get_it: ^8.0.3
   crypto: ^3.0.3
+  url_launcher: ^6.2.2
   
   # UI
   cupertino_icons: ^1.0.2
