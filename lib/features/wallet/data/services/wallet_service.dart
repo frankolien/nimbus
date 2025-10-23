@@ -5,8 +5,6 @@ import 'dart:convert';
 
 class WalletService {
   final http.Client _client;
-  bool _isConnected = false;
-  String? _walletAddress;
 
   WalletService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -15,27 +13,19 @@ class WalletService {
     // For now, we'll use a mock implementation
   }
 
-  bool get isConnected => _isConnected;
-
-  String? get walletAddress => _walletAddress;
-
   Future<void> connectWallet(BuildContext context) async {
     // Simulate wallet connection for now
     await Future.delayed(const Duration(seconds: 2));
 
-    // Mock connected wallet
-    _isConnected = true;
-    _walletAddress =
-        '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'; // Mock address
+    // Mock connected wallet - this will be handled by the provider
   }
 
   Future<void> disconnectWallet() async {
-    _isConnected = false;
-    _walletAddress = null;
+    // Disconnect logic - this will be handled by the provider
   }
 
-  Future<List<TokenBalance>> getTokenBalances() async {
-    if (!isConnected || walletAddress == null) {
+  Future<List<TokenBalance>> getTokenBalances(String? walletAddress) async {
+    if (walletAddress == null) {
       return [];
     }
 
@@ -95,8 +85,8 @@ class WalletService {
     ];
   }
 
-  Future<double> getETHBalance() async {
-    if (!isConnected || walletAddress == null) {
+  Future<double> getETHBalance(String? walletAddress) async {
+    if (walletAddress == null) {
       return 0.0;
     }
 
@@ -149,19 +139,4 @@ class TokenBalance {
 // Providers
 final walletServiceProvider = Provider<WalletService>((ref) {
   return WalletService();
-});
-
-final walletConnectionProvider = StateProvider<bool>((ref) {
-  final walletService = ref.watch(walletServiceProvider);
-  return walletService.isConnected;
-});
-
-final walletAddressProvider = StateProvider<String?>((ref) {
-  final walletService = ref.watch(walletServiceProvider);
-  return walletService.walletAddress;
-});
-
-final tokenBalancesProvider = FutureProvider<List<TokenBalance>>((ref) async {
-  final walletService = ref.watch(walletServiceProvider);
-  return walletService.getTokenBalances();
 });

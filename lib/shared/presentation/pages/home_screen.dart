@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/shared/services/crypto_price_service.dart';
+import 'package:nimbus/shared/presentation/pages/token_detail_screen.dart';
 import 'package:nimbus/features/exchange/presentation/pages/swap_screen.dart';
 import 'package:nimbus/features/buy/presentation/pages/buy_page.dart';
 import 'package:nimbus/features/send/presentation/pages/send_page.dart';
 import 'package:nimbus/features/receive/presentation/pages/receive_page.dart';
-import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
+import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -39,7 +40,7 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(width: 12),
             Consumer(
               builder: (context, ref, child) {
-                final walletAddress = ref.watch(walletAddressProvider);
+                final walletAddress = ref.watch(currentWalletAddressProvider);
                 return Text(
                   walletAddress != null
                       ? '${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}'
@@ -179,7 +180,8 @@ class HomeScreen extends ConsumerWidget {
                 Expanded(
                   child: Consumer(
                     builder: (context, ref, child) {
-                      final cryptoPrices = ref.watch(cryptoPricesProvider);
+                      final cryptoPrices =
+                          ref.watch(cryptoPricesRefreshProvider);
 
                       return cryptoPrices.when(
                         data: (prices) => ListView.builder(
@@ -187,7 +189,7 @@ class HomeScreen extends ConsumerWidget {
                           itemCount: prices.length,
                           itemBuilder: (context, index) {
                             final crypto = prices[index];
-                            return _buildAssetItem(crypto);
+                            return _buildAssetItem(context, crypto);
                           },
                         ),
                         loading: () => const Center(
@@ -271,51 +273,84 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAssetItem(CryptoPrice crypto) {
+  Widget _buildAssetItem(BuildContext context, CryptoPrice crypto) {
     final isPositive = crypto.change24h >= 0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          // Crypto Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                crypto.imageUrl,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFF333333),
-                    child: const Icon(
-                      Icons.currency_bitcoin,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  );
-                },
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TokenDetailScreen(crypto: crypto),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            // Crypto Icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.network(
+                  crypto.imageUrl,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFF333333),
+                      child: const Icon(
+                        Icons.currency_bitcoin,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // Crypto Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Crypto Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    crypto.symbol,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '\$${crypto.price.toStringAsFixed(2)} • ${isPositive ? '+' : ''}${crypto.change24h.toStringAsFixed(2)}%',
+                    style: TextStyle(
+                      color: isPositive ? Colors.green : Colors.red,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Balance Info
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  crypto.symbol,
+                  '\$${crypto.balanceValue.toStringAsFixed(2)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -324,39 +359,16 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '\$${crypto.price.toStringAsFixed(2)} • ${isPositive ? '+' : ''}${crypto.change24h.toStringAsFixed(2)}%',
-                  style: TextStyle(
-                    color: isPositive ? Colors.green : Colors.red,
+                  crypto.balance.toStringAsFixed(crypto.balance < 1 ? 4 : 2),
+                  style: const TextStyle(
+                    color: Color(0xFF999999),
                     fontSize: 12,
                   ),
                 ),
               ],
             ),
-          ),
-
-          // Balance Info
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '\$${crypto.balanceValue.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                crypto.balance.toStringAsFixed(crypto.balance < 1 ? 4 : 2),
-                style: const TextStyle(
-                  color: Color(0xFF999999),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

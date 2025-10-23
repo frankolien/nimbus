@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/shared/presentation/pages/main_navigation_screen.dart';
-import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
+import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:nimbus/features/wallet/domain/entities/wallet.dart';
 
 class WalletConnectionScreen extends ConsumerStatefulWidget {
   const WalletConnectionScreen({super.key});
@@ -13,41 +14,10 @@ class WalletConnectionScreen extends ConsumerStatefulWidget {
 
 class _WalletConnectionScreenState
     extends ConsumerState<WalletConnectionScreen> {
-  bool _isConnecting = false;
-
   Future<void> _connectWallet() async {
-    setState(() {
-      _isConnecting = true;
-    });
-
     try {
-      final walletService = ref.read(walletServiceProvider);
-
-      // Initialize and connect to real wallet
-      await walletService.connectWallet(context);
-
-      // Wait for connection to be established
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Check if wallet is connected
-      final isConnected = walletService.isConnected;
-
-      if (isConnected && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Wallet connected! Address: ${walletService.walletAddress?.substring(0, 6)}...'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-        );
-      } else {
-        throw Exception('Wallet connection failed');
-      }
+      final walletStateNotifier = ref.read(walletStateProvider.notifier);
+      await walletStateNotifier.connectWallet();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -57,17 +27,36 @@ class _WalletConnectionScreenState
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isConnecting = false;
-        });
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Listen for wallet connection state changes
+    ref.listen<AsyncValue<Wallet?>>(walletStateProvider, (previous, next) {
+      if (next.hasValue && next.value != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Wallet connected! Address: ${next.value!.address.substring(0, 6)}...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+        );
+      } else if (next.hasError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Wallet connection failed: ${next.error}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
@@ -89,19 +78,10 @@ class _WalletConnectionScreenState
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              const SizedBox(height: 60),
               // Wallet Icon
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 50,
-                  color: Color(0xFFFF6B35),
-                ),
+              Image.asset(
+                'assets/images/shield.png',
               ),
               const SizedBox(height: 32),
 
@@ -121,33 +101,6 @@ class _WalletConnectionScreenState
                 style: TextStyle(
                   fontSize: 16,
                   color: Color(0xFF999999),
-                ),
-              ),
-              const SizedBox(height: 48),
-
-              // Connect Wallet Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isConnecting ? null : _connectWallet,
-                  child: _isConnecting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Connect Wallet',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
               ),
 
@@ -175,7 +128,42 @@ class _WalletConnectionScreenState
                 ],
               ),
 
-              const SizedBox(height: 24),
+              //const SizedBox(height: 48),
+              Spacer(
+                flex: 1,
+              ),
+
+              // Connect Wallet Button
+              Consumer(
+                builder: (context, ref, child) {
+                  final walletState = ref.watch(walletStateProvider);
+                  final isLoading = walletState.isLoading;
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: isLoading ? null : _connectWallet,
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text(
+                              'Connect Wallet',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  );
+                },
+              ),
 
               // Skip for now button
               TextButton(

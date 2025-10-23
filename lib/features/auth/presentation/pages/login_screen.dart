@@ -150,15 +150,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Logo
+              Image.asset(
+                'assets/images/app_logo.png',
+                width: 60,
+                height: 60,
+              ),
               const Text(
                 'Nimbus',
                 style: TextStyle(
-                  fontSize: 48,
+                  fontSize: 38,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 16),
+              //const SizedBox(height: 16),
 
               const Text(
                 'Welcome Back',

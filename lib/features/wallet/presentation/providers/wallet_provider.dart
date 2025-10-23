@@ -47,7 +47,7 @@ class WalletState extends _$WalletState {
         // Mock token balances for now
         await Future.delayed(const Duration(seconds: 1));
         final tokens = [
-          Token(
+          const Token(
             address:
                 '0x0000000000000000000000000000000000000000', // ETH native token
             symbol: 'ETH',
@@ -56,7 +56,7 @@ class WalletState extends _$WalletState {
             decimals: 18,
             chainId: '137', // Polygon chain ID
           ),
-          Token(
+          const Token(
             address: '0xA0b86a33E6441b8C4C8C0C4C0C4C0C4C0C4C0C4C',
             symbol: 'USDC',
             name: 'USD Coin',

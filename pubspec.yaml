@@ -40,6 +40,8 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.2
   google_fonts: ^6.1.0
+  fl_chart: ^0.70.0
+  intl: ^0.20.2
   
   # Environment
   flutter_dotenv: ^5.1.0
@@ -66,5 +68,4 @@ flutter:
   
   assets:
     - assets/images/
-    - assets/icons/
     - .env

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
+import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 
 class CryptoPrice {
   final String symbol;
@@ -27,96 +28,176 @@ class CryptoPrice {
 class CryptoPriceService {
   final http.Client _client;
   final Ref _ref;
-  static const String _baseUrl = 'https://api.coingecko.com/api/v3';
 
   CryptoPriceService(this._ref, {http.Client? client})
       : _client = client ?? http.Client();
 
-  Future<List<CryptoPrice>> getCryptoPrices() async {
+  Future<List<CryptoPrice>> getCryptoPrices(String? walletAddress) async {
     try {
-      // Get prices for major cryptocurrencies
-      final response = await _client.get(
-        Uri.parse(
-            '$_baseUrl/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true'),
-      );
+      print('Fetching crypto prices...');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      // Get real wallet balances
+      final walletBalances = await _getWalletBalances(walletAddress);
 
-        // Get real wallet balances
-        final walletBalances = await _getWalletBalances();
+      // Try to fetch from CoinGecko API first (free, no API key required)
+      try {
+        final response = await _client.get(
+          Uri.parse(
+              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true'),
+        );
 
-        return [
-          CryptoPrice(
-            symbol: 'USDT',
-            name: 'Tether',
-            price: data['tether']['usd'].toDouble(),
-            change24h: data['tether']['usd_24h_change'].toDouble(),
-            imageUrl:
-                'https://assets.coingecko.com/coins/images/325/small/Tether.png',
-            balance: walletBalances['USDT'] ?? 0.0,
-            balanceValue: (walletBalances['USDT'] ?? 0.0) *
-                data['tether']['usd'].toDouble(),
-          ),
-          CryptoPrice(
-            symbol: 'SOL',
-            name: 'Solana',
-            price: data['solana']['usd'].toDouble(),
-            change24h: data['solana']['usd_24h_change'].toDouble(),
-            imageUrl:
-                'https://assets.coingecko.com/coins/images/4128/small/solana.png',
-            balance: walletBalances['SOL'] ?? 0.0,
-            balanceValue: (walletBalances['SOL'] ?? 0.0) *
-                data['solana']['usd'].toDouble(),
-          ),
-          CryptoPrice(
-            symbol: 'TON',
-            name: 'Ton',
-            price: data['toncoin']['usd'].toDouble(),
-            change24h: data['toncoin']['usd_24h_change'].toDouble(),
-            imageUrl:
-                'https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png',
-            balance: walletBalances['TON'] ?? 0.0,
-            balanceValue: (walletBalances['TON'] ?? 0.0) *
-                data['toncoin']['usd'].toDouble(),
-          ),
-          CryptoPrice(
-            symbol: 'ETH',
-            name: 'Ethereum',
-            price: data['ethereum']['usd'].toDouble(),
-            change24h: data['ethereum']['usd_24h_change'].toDouble(),
-            imageUrl:
-                'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
-            balance: walletBalances['ETH'] ?? 0.0,
-            balanceValue: (walletBalances['ETH'] ?? 0.0) *
-                data['ethereum']['usd'].toDouble(),
-          ),
-          CryptoPrice(
-            symbol: 'BTC',
-            name: 'Bitcoin',
-            price: data['bitcoin']['usd'].toDouble(),
-            change24h: data['bitcoin']['usd_24h_change'].toDouble(),
-            imageUrl:
-                'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
-            balance: walletBalances['BTC'] ?? 0.0,
-            balanceValue: (walletBalances['BTC'] ?? 0.0) *
-                data['bitcoin']['usd'].toDouble(),
-          ),
-        ];
-      } else {
-        throw Exception('Failed to load crypto prices');
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          return _parseCoinGeckoData(data, walletBalances);
+        }
+      } catch (e) {
+        print('CoinGecko API failed: $e');
       }
+
+      // Fallback to mock data if API fails
+      print('Using mock crypto prices...');
+      return _getMockCryptoPricesWithBalances(walletBalances);
     } catch (e) {
-      // Return mock data if API fails
-      return _getMockCryptoPrices();
+      print('Error fetching crypto prices: $e');
+      print('Falling back to mock data...');
+      return _getMockCryptoPricesWithBalances({});
     }
   }
 
-  Future<Map<String, double>> _getWalletBalances() async {
+  List<CryptoPrice> _parseCoinGeckoData(
+      Map<String, dynamic> data, Map<String, double> walletBalances) {
+    final cryptoData = [
+      {
+        'id': 'bitcoin',
+        'symbol': 'BTC',
+        'name': 'Bitcoin',
+        'image': 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png'
+      },
+      {
+        'id': 'ethereum',
+        'symbol': 'ETH',
+        'name': 'Ethereum',
+        'image':
+            'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
+      },
+      {
+        'id': 'solana',
+        'symbol': 'SOL',
+        'name': 'Solana',
+        'image':
+            'https://assets.coingecko.com/coins/images/4128/small/solana.png'
+      },
+      {
+        'id': 'tether',
+        'symbol': 'USDT',
+        'name': 'Tether',
+        'image':
+            'https://assets.coingecko.com/coins/images/325/small/Tether.png'
+      },
+      {
+        'id': 'toncoin',
+        'symbol': 'TON',
+        'name': 'Toncoin',
+        'image':
+            'https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png'
+      },
+    ];
+
+    List<CryptoPrice> cryptoPrices = [];
+
+    for (var crypto in cryptoData) {
+      final id = crypto['id'] as String;
+      final symbol = crypto['symbol'] as String;
+      final name = crypto['name'] as String;
+      final imageUrl = crypto['image'] as String;
+
+      if (data.containsKey(id)) {
+        final cryptoInfo = data[id] as Map<String, dynamic>;
+        final price = (cryptoInfo['usd'] as num).toDouble();
+        final change24h =
+            (cryptoInfo['usd_24h_change'] as num?)?.toDouble() ?? 0.0;
+        final balance = walletBalances[symbol] ?? 0.0;
+
+        cryptoPrices.add(CryptoPrice(
+          symbol: symbol,
+          name: name,
+          price: price,
+          change24h: change24h,
+          imageUrl: imageUrl,
+          balance: balance,
+          balanceValue: balance * price,
+        ));
+
+        print(
+            'Fetched ${symbol}: \$${price.toStringAsFixed(2)} (${change24h >= 0 ? '+' : ''}${change24h.toStringAsFixed(2)}%)');
+      }
+    }
+
+    return cryptoPrices;
+  }
+
+  List<CryptoPrice> _getMockCryptoPricesWithBalances(
+      Map<String, double> walletBalances) {
+    // Current realistic prices (as of December 2024)
+    return [
+      CryptoPrice(
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        price: 68000.00,
+        change24h: -2.1,
+        imageUrl:
+            'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
+        balance: walletBalances['BTC'] ?? 0.0,
+        balanceValue: (walletBalances['BTC'] ?? 0.0) * 68000.00,
+      ),
+      CryptoPrice(
+        symbol: 'ETH',
+        name: 'Ethereum',
+        price: 3500.00,
+        change24h: 3.2,
+        imageUrl:
+            'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
+        balance: walletBalances['ETH'] ?? 0.0,
+        balanceValue: (walletBalances['ETH'] ?? 0.0) * 3500.00,
+      ),
+      CryptoPrice(
+        symbol: 'SOL',
+        name: 'Solana',
+        price: 188.91,
+        change24h: 2.5,
+        imageUrl:
+            'https://assets.coingecko.com/coins/images/4128/small/solana.png',
+        balance: walletBalances['SOL'] ?? 0.0,
+        balanceValue: (walletBalances['SOL'] ?? 0.0) * 188.91,
+      ),
+      CryptoPrice(
+        symbol: 'USDT',
+        name: 'Tether',
+        price: 1.00,
+        change24h: 0.01,
+        imageUrl:
+            'https://assets.coingecko.com/coins/images/325/small/Tether.png',
+        balance: walletBalances['USDT'] ?? 0.0,
+        balanceValue: (walletBalances['USDT'] ?? 0.0) * 1.00,
+      ),
+      CryptoPrice(
+        symbol: 'TON',
+        name: 'Toncoin',
+        price: 6.85,
+        change24h: -1.2,
+        imageUrl:
+            'https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png',
+        balance: walletBalances['TON'] ?? 0.0,
+        balanceValue: (walletBalances['TON'] ?? 0.0) * 6.85,
+      ),
+    ];
+  }
+
+  Future<Map<String, double>> _getWalletBalances(String? walletAddress) async {
     try {
       // Get token balances from wallet service
       final walletService = _ref.read(walletServiceProvider);
-      final tokenBalances = await walletService.getTokenBalances();
+      final tokenBalances = await walletService.getTokenBalances(walletAddress);
 
       Map<String, double> balances = {};
       for (var token in tokenBalances) {
@@ -128,61 +209,6 @@ class CryptoPriceService {
       print('Error getting wallet balances: $e');
       return {};
     }
-  }
-
-  List<CryptoPrice> _getMockCryptoPrices() {
-    return [
-      CryptoPrice(
-        symbol: 'USDT',
-        name: 'Tether',
-        price: 0.99,
-        change24h: 0.001,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/325/small/Tether.png',
-        balance: 0.0,
-        balanceValue: 0.0,
-      ),
-      CryptoPrice(
-        symbol: 'SOL',
-        name: 'Solana',
-        price: 146.76,
-        change24h: -6.2,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/4128/small/solana.png',
-        balance: 0.0,
-        balanceValue: 0.0,
-      ),
-      CryptoPrice(
-        symbol: 'TON',
-        name: 'Ton',
-        price: 146.76,
-        change24h: -4.01,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png',
-        balance: 0.0,
-        balanceValue: 0.0,
-      ),
-      CryptoPrice(
-        symbol: 'ETH',
-        name: 'Ethereum',
-        price: 2401.89,
-        change24h: 4.01,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
-        balance: 0.0,
-        balanceValue: 0.0,
-      ),
-      CryptoPrice(
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        price: 2401.89,
-        change24h: -4.01,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
-        balance: 0.0,
-        balanceValue: 0.0,
-      ),
-    ];
   }
 
   double getTotalBalance(List<CryptoPrice> prices) {
@@ -198,18 +224,34 @@ final cryptoPriceServiceProvider = Provider<CryptoPriceService>((ref) {
 // Provider for crypto prices with auto-refresh
 final cryptoPricesProvider = FutureProvider<List<CryptoPrice>>((ref) async {
   final service = ref.watch(cryptoPriceServiceProvider);
-
-  // Auto-refresh every 30 seconds
-  Timer.periodic(const Duration(seconds: 30), (timer) {
-    ref.invalidateSelf();
-  });
-
-  return service.getCryptoPrices();
+  final walletAddress = ref.watch(currentWalletAddressProvider);
+  return service.getCryptoPrices(walletAddress);
 });
 
-// Provider for total balance - simplified to avoid circular dependencies
+// Auto-refresh provider that triggers updates every 30 seconds
+final cryptoPricesRefreshProvider =
+    StreamProvider<List<CryptoPrice>>((ref) async* {
+  final service = ref.watch(cryptoPriceServiceProvider);
+  final walletAddress = ref.watch(currentWalletAddressProvider);
+
+  while (true) {
+    try {
+      final prices = await service.getCryptoPrices(walletAddress);
+      yield prices;
+    } catch (e) {
+      print('Error in crypto prices refresh: $e');
+      // Yield empty list on error to keep stream alive
+      yield <CryptoPrice>[];
+    }
+
+    // Wait 30 seconds before next update
+    await Future.delayed(const Duration(seconds: 30));
+  }
+});
+
+// Provider for total balance - uses auto-refresh provider
 final totalBalanceProvider = Provider<double>((ref) {
-  final prices = ref.watch(cryptoPricesProvider);
+  final prices = ref.watch(cryptoPricesRefreshProvider);
   return prices.when(
     data: (prices) {
       double totalValue = 0.0;
