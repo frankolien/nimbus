@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import '../../entities/nft.dart';
 import '../../providers/nft_provider.dart';
+import '../../services/nft_service.dart';
+import '../../../features/wallet/presentation/providers/wallet_provider.dart';
+import '../pages/nft_purchase_receipt_screen.dart';
+import '../pages/nft_bid_confirmation_screen.dart';
 
 class NFTGridWidget extends ConsumerWidget {
   final String title;
@@ -142,18 +147,33 @@ class NFTGridWidget extends ConsumerWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                  Icons.image_not_supported,
-                                  color: Colors.grey,
-                                  size: 40,
+                                Icon(
+                                  Icons.image,
+                                  color: Colors.grey[400],
+                                  size: 50,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  nft.name,
+                                  style: TextStyle(
+                                    color: Colors.grey[300],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Failed to load',
+                                  nft.collectionName,
                                   style: TextStyle(
-                                    color: Colors.grey[400],
+                                    color: Colors.grey[500],
                                     fontSize: 10,
                                   ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -192,6 +212,17 @@ class NFTGridWidget extends ConsumerWidget {
                               ),
                               textAlign: TextAlign.center,
                               maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              nft.collectionName,
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
@@ -380,13 +411,13 @@ class NFTGridWidget extends ConsumerWidget {
   }
 }
 
-class NFTDetailModal extends StatelessWidget {
+class NFTDetailModal extends ConsumerWidget {
   final NFT nft;
 
   const NFTDetailModal({super.key, required this.nft});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
       decoration: const BoxDecoration(
@@ -546,6 +577,9 @@ class NFTDetailModal extends StatelessWidget {
                       }).toList(),
                     ),
                   ],
+
+                  // Purchase Info and Actions
+                  _buildPurchaseSection(context, ref),
                 ],
               ),
             ),
@@ -553,6 +587,492 @@ class NFTDetailModal extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildPurchaseSection(BuildContext context, WidgetRef ref) {
+    final purchaseInfoAsync =
+        ref.watch(nftPurchaseInfoProvider(nft.contractAddress, nft.tokenId));
+    final walletState = ref.watch(walletStateProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Purchase Options',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        purchaseInfoAsync.when(
+          data: (purchaseInfo) =>
+              _buildPurchaseInfo(context, ref, purchaseInfo, walletState),
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+          ),
+          error: (error, stack) => Text(
+            'Error loading purchase info: $error',
+            style: const TextStyle(color: Colors.red),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPurchaseInfo(BuildContext context, WidgetRef ref,
+      Map<String, dynamic> purchaseInfo, AsyncValue walletState) {
+    final buyNowPrice = purchaseInfo['buyNowPrice'] as double?;
+    final bidPrice = purchaseInfo['bidPrice'] as double?;
+    final gasEstimate = purchaseInfo['gasEstimate'] as double?;
+    final marketplace = purchaseInfo['marketplace'] as String?;
+
+    return Column(
+      children: [
+        // Price Information
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2C2C2E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF3A3A3C)),
+          ),
+          child: Column(
+            children: [
+              if (buyNowPrice != null)
+                _buildPriceRow(
+                    'Buy Now', '${buyNowPrice.toStringAsFixed(3)} ETH'),
+              if (bidPrice != null)
+                _buildPriceRow(
+                    'Current Bid', '${bidPrice.toStringAsFixed(3)} ETH'),
+              if (gasEstimate != null)
+                _buildPriceRow(
+                    'Gas Fee', '${gasEstimate.toStringAsFixed(3)} ETH'),
+              if (marketplace != null)
+                _buildPriceRow('Marketplace', marketplace),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Action Buttons
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: walletState.hasValue
+                    ? () => _showBuyDialog(context, ref, buyNowPrice ?? 0.5)
+                    : null,
+                icon: const Icon(Icons.shopping_cart, size: 18),
+                label: const Text('Buy Now'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: walletState.hasValue
+                    ? () => _showBidDialog(context, ref, bidPrice ?? 0.4)
+                    : null,
+                icon: const Icon(Icons.gavel, size: 18),
+                label: const Text('Place Bid'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFFF6B35),
+                  side: const BorderSide(color: Color(0xFFFF6B35)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        if (!walletState.hasValue) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Connect your wallet to purchase NFTs',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showBuyDialog(BuildContext context, WidgetRef ref, double price) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Buy NFT',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Are you sure you want to buy this NFT for ${price.toStringAsFixed(3)} ETH?',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Total Cost: ${(price + 0.01).toStringAsFixed(3)} ETH (including gas)',
+              style: const TextStyle(
+                color: Color(0xFFFF6B35),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => _executePurchase(context, ref, price),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6B35),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm Purchase'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBidDialog(BuildContext context, WidgetRef ref, double currentBid) {
+    final bidController =
+        TextEditingController(text: (currentBid + 0.05).toStringAsFixed(3));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Place Bid',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Current Floor:',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    '${currentBid.toStringAsFixed(3)} ETH',
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B35),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: bidController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Your bid (ETH)',
+                labelStyle: TextStyle(color: Colors.grey),
+                border: OutlineInputBorder(),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFFFF6B35)),
+                ),
+                helperText: 'Bid must be higher than current floor price',
+                helperStyle: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Bids expire in 7 days. You can increase your bid anytime.',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You have 0.0 ETH. This is a demo - bids will be simulated.',
+                      style: TextStyle(
+                        color: Colors.red[300],
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final bidAmount = double.tryParse(bidController.text);
+              if (bidAmount != null && bidAmount > currentBid) {
+                _executeBid(context, ref, bidAmount);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content:
+                        Text('Bid must be higher than current floor price'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6B35),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Place Demo Bid'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executePurchase(
+      BuildContext context, WidgetRef ref, double price) async {
+    print(
+        '🛒 Starting purchase execution for ${nft.name} - ${price.toStringAsFixed(3)} ETH');
+
+    Navigator.pop(context); // Close dialog
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+      ),
+    );
+
+    try {
+      print('🔍 Checking wallet state...');
+      final walletState = ref.read(walletStateProvider);
+
+      // If wallet is not connected, try to connect it first
+      if (!walletState.hasValue || walletState.value == null) {
+        print('🔄 Wallet not connected, attempting to connect...');
+        final walletStateNotifier = ref.read(walletStateProvider.notifier);
+        await walletStateNotifier.connectWallet();
+
+        // Re-read the wallet state after connection attempt
+        final updatedWalletState = ref.read(walletStateProvider);
+        if (!updatedWalletState.hasValue || updatedWalletState.value == null) {
+          print('❌ Failed to connect wallet');
+          throw Exception('Failed to connect wallet');
+        }
+        final wallet = updatedWalletState.value!;
+        print('✅ Wallet connected: ${wallet.address}');
+      } else {
+        final wallet = walletState.value!;
+        print('✅ Wallet already connected: ${wallet.address}');
+      }
+
+      // Get the final wallet state
+      final finalWalletState = ref.read(walletStateProvider);
+      final wallet = finalWalletState.value!;
+
+      print('💳 Calling NFTService.purchaseNFT...');
+      // For now, use a mock private key to avoid the custodial service complexity
+      // In a real app, this would come from secure storage
+      final mockPrivateKey =
+          '0x1b9a64fa8c4c8b8e8f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e';
+
+      // Use a mock wallet address for testing
+      final mockWalletAddress = '0xd3b457c239a5594860cfa9c3a376890b3e4724a4';
+
+      print('🛒 Using mock wallet address: $mockWalletAddress');
+
+      final result = await NFTService.purchaseNFT(
+        contractAddress: nft.contractAddress,
+        tokenId: nft.tokenId,
+        price: price,
+        buyerAddress: mockWalletAddress,
+        privateKey: mockPrivateKey,
+      );
+
+      print('✅ Purchase result: $result');
+
+      if (context.mounted) Navigator.pop(context); // Close loading
+
+      if (result['success'] == true) {
+        print('🎉 Purchase successful, navigating to receipt...');
+        HapticFeedback.lightImpact();
+        if (context.mounted) {
+          // Navigate to purchase receipt screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NFTPurchaseReceiptScreen(
+                nft: nft,
+                purchaseResult: result,
+              ),
+            ),
+          );
+        }
+      } else {
+        print('❌ Purchase failed: ${result['error']}');
+        throw Exception(result['error'] ?? 'Purchase failed');
+      }
+    } catch (e) {
+      print('❌ Purchase execution error: $e');
+      if (context.mounted) Navigator.pop(context); // Close loading
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Purchase failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _executeBid(
+      BuildContext context, WidgetRef ref, double bidAmount) async {
+    print(
+        '🎯 Starting bid execution for ${nft.name} - ${bidAmount.toStringAsFixed(3)} ETH');
+
+    Navigator.pop(context); // Close dialog
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+      ),
+    );
+
+    try {
+      print('🔍 Checking wallet state...');
+      final walletState = ref.read(walletStateProvider);
+      if (!walletState.hasValue) {
+        print('❌ Wallet not connected');
+        throw Exception('Wallet not connected');
+      }
+
+      print('✅ Wallet connected: ${walletState.value!.address}');
+      final wallet = walletState.value!;
+
+      print('🎯 Placing bid...');
+      // For now, use a mock private key to avoid the custodial service complexity
+      // In a real app, this would come from secure storage
+      final mockPrivateKey =
+          '0x1b9a64fa8c4c8b8e8f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e4f4e';
+
+      final result = await NFTService.placeBid(
+        contractAddress: nft.contractAddress,
+        tokenId: nft.tokenId,
+        bidAmount: bidAmount,
+        bidderAddress: wallet.address,
+        privateKey: mockPrivateKey,
+        expirationTime: const Duration(days: 7),
+      );
+
+      print('✅ Bid result: $result');
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (result['success'] == true) {
+        HapticFeedback.lightImpact();
+        if (context.mounted) {
+          // Navigate to bid confirmation screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NFTBidConfirmationScreen(
+                nft: nft,
+                bidResult: result,
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception(result['error'] ?? 'Bid failed');
+      }
+    } catch (e) {
+      print('❌ Bid execution error: $e');
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bid failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildPriceRow(String label, String value) {

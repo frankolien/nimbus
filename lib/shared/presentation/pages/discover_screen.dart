@@ -7,6 +7,8 @@ import 'package:nimbus/shared/data/services/dapp_service.dart';
 import 'package:nimbus/shared/presentation/providers/discover_provider.dart';
 import 'package:nimbus/shared/presentation/widgets/nft_grid_widget.dart';
 import 'package:nimbus/shared/providers/nft_provider.dart';
+import 'package:nimbus/shared/entities/nft.dart';
+import 'package:nimbus/shared/presentation/pages/nft_purchase_test_screen.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
@@ -60,9 +62,22 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       final discoverState = ref.watch(discoverProvider);
       final dappGrid = ref.watch(dappGridProvider);
       final categories = ref.watch(categoriesProvider);
+      final searchQuery = ref.watch(nFTSearchNotifierProvider);
 
       return Scaffold(
         backgroundColor: const Color(0xFF1C1C1E),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NFTPurchaseTestScreen(),
+              ),
+            );
+          },
+          backgroundColor: const Color(0xFFFF6B35),
+          child: const Icon(Icons.bug_report, color: Colors.white),
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
             child: Column(
@@ -71,39 +86,44 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 _buildSearchBar(),
                 const SizedBox(height: 16),
 
-                // DApp Grid
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2C2C2E),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF3A3A3C),
-                        width: 1,
+                // Show search results if searching
+                if (searchQuery.isNotEmpty) ...[
+                  _buildSearchResults(searchQuery),
+                ] else ...[
+                  // DApp Grid
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2C2E),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF3A3A3C),
+                          width: 1,
+                        ),
                       ),
+                      child: _buildDAppGrid(dappGrid),
                     ),
-                    child: _buildDAppGrid(dappGrid),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // NFT Section
-                NFTGridWidget(
-                  title: 'Trending NFTs',
-                  category: 'trending',
-                  showStats: true,
-                  onViewAll: () => _showAllNFTs(),
-                ),
-                const SizedBox(height: 16),
+                  // NFT Section
+                  NFTGridWidget(
+                    title: 'Trending NFTs',
+                    category: 'trending',
+                    showStats: true,
+                    onViewAll: () => _showAllNFTs(),
+                  ),
+                  const SizedBox(height: 16),
 
-                // Navigation Tabs
-                _buildNavigationTabs(categories, discoverState.selectedTab),
-                const SizedBox(height: 12),
+                  // Navigation Tabs
+                  _buildNavigationTabs(categories, discoverState.selectedTab),
+                  const SizedBox(height: 12),
 
-                // Content based on selected tab
-                _buildTabContent(discoverState),
+                  // Content based on selected tab
+                  _buildTabContent(discoverState),
+                ],
               ],
             ),
           ),
@@ -121,6 +141,237 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         ),
       );
     }
+  }
+
+  Widget _buildSearchResults(String query) {
+    final searchResultsAsync = ref.watch(nftSearchResultsProvider(query));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search Results Header
+          Row(
+            children: [
+              Text(
+                'Search Results for "$query"',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  _searchController.clear();
+                  ref.read(discoverProvider.notifier).clearSearch();
+                  ref.read(nFTSearchNotifierProvider.notifier).clearSearch();
+                },
+                child: const Text(
+                  'Clear',
+                  style: TextStyle(color: Color(0xFFFF6B35)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Search Results
+          searchResultsAsync.when(
+            data: (nfts) {
+              if (nfts.isEmpty) {
+                return Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.search_off,
+                        color: Colors.grey[600],
+                        size: 64,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No NFTs found for "$query"',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.7,
+                ),
+                itemCount: nfts.length,
+                itemBuilder: (context, index) {
+                  final nft = nfts[index];
+                  return GestureDetector(
+                    onTap: () => _showNFTDetail(context, nft),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2C2E),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF3A3A3C)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // NFT Image
+                          Expanded(
+                            flex: 3,
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(12),
+                              ),
+                              child: Container(
+                                width: double.infinity,
+                                color: Colors.grey[800],
+                                child: nft.imageUrl.isNotEmpty
+                                    ? Image.network(
+                                        nft.imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[800],
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.image,
+                                                  color: Colors.grey[400],
+                                                  size: 30,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  nft.name,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[300],
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Container(
+                                        color: Colors.grey[800],
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.image,
+                                              color: Colors.grey[400],
+                                              size: 30,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              nft.name,
+                                              style: TextStyle(
+                                                color: Colors.grey[300],
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+
+                          // NFT Info
+                          Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nft.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    nft.collectionName,
+                                    style: const TextStyle(
+                                      color: Color(0xFF8E8E93),
+                                      fontSize: 10,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const Spacer(),
+                                  if (nft.floorPrice != null)
+                                    Text(
+                                      '${nft.floorPrice!.toStringAsFixed(2)} ETH',
+                                      style: const TextStyle(
+                                        color: Color(0xFFFF6B35),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+            ),
+            error: (error, stack) => Center(
+              child: Text(
+                'Error searching NFTs: $error',
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNFTDetail(BuildContext context, NFT nft) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => NFTDetailModal(nft: nft),
+    );
   }
 
   Widget _buildSearchBar() {
@@ -160,6 +411,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                     onPressed: () {
                       _searchController.clear();
                       ref.read(discoverProvider.notifier).clearSearch();
+                      ref
+                          .read(nFTSearchNotifierProvider.notifier)
+                          .clearSearch();
                     },
                   )
                 : null,
@@ -169,6 +423,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           ),
           onChanged: (value) {
             ref.read(discoverProvider.notifier).updateSearchQuery(value);
+            ref.read(nFTSearchNotifierProvider.notifier).setSearchQuery(value);
           },
         ),
       ),
@@ -395,7 +650,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
 
   Widget _buildStatCard(String title, String value) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(8),
@@ -406,7 +661,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
               color: Color(0xFFFF6B35),
             ),

@@ -87,6 +87,26 @@ class NFTSearchNotifier extends _$NFTSearchNotifier {
   }
 }
 
+// Provider for search results
+@riverpod
+Future<List<NFT>> nftSearchResults(
+    NftSearchResultsRef ref, String query) async {
+  if (query.isEmpty) {
+    return await NFTService.getTrendingNFTs();
+  }
+  return await NFTService.searchNFTs(query);
+}
+
+// Provider for NFT purchase info
+@riverpod
+Future<Map<String, dynamic>> nftPurchaseInfo(
+  NftPurchaseInfoRef ref,
+  String contractAddress,
+  String tokenId,
+) async {
+  return await NFTService.getNFTPurchaseInfo(contractAddress, tokenId);
+}
+
 // Provider for NFT stats
 @riverpod
 Future<Map<String, dynamic>> nftStats(NftStatsRef ref) async {

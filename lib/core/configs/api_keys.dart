@@ -6,8 +6,8 @@ class ApiKeys {
   static const String ankrApiKey =
       'd14ff8ec300b9cc41102e488649e5b170196520b5dbbfe1c86a7cc935574f583';
 
-  // Alchemy API Key (Optional - for backup)
-  static const String alchemyApiKey = 'your_alchemy_api_key_here';
+  // Alchemy API Key (NFT API and Ethereum RPC)
+  static const String alchemyApiKey = 'Y19RYqOY9zsJv4ZIAAKWu';
 
   // CoinGecko API Key (Optional - for higher rate limits)
   static const String coinGeckoApiKey = 'your_coingecko_api_key_here';
