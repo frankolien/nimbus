@@ -41,7 +41,7 @@ final currentWalletAddressProvider = AutoDisposeProvider<String?>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CurrentWalletAddressRef = AutoDisposeProviderRef<String?>;
-String _$walletStateHash() => r'7a6358aa9781a7fc82467747422d51d8bca63f63';
+String _$walletStateHash() => r'c38a65465024847e3543982aa42281e1baa7a998';
 
 /// See also [WalletState].
 @ProviderFor(WalletState)

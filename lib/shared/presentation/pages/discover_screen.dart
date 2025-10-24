@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:nimbus/shared/data/services/dapp_service.dart';
 import 'package:nimbus/shared/presentation/providers/discover_provider.dart';
+import 'package:nimbus/shared/presentation/widgets/nft_grid_widget.dart';
+import 'package:nimbus/shared/providers/nft_provider.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
@@ -62,36 +64,48 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       return Scaffold(
         backgroundColor: const Color(0xFF1C1C1E),
         body: SafeArea(
-          child: Column(
-            children: [
-              // Search Bar
-              _buildSearchBar(),
-              const SizedBox(height: 24),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                // Search Bar
+                _buildSearchBar(),
+                const SizedBox(height: 16),
 
-              // DApp Grid
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFF3A3A3C),
-                    width: 1,
+                // DApp Grid
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C2C2E),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF3A3A3C),
+                        width: 1,
+                      ),
+                    ),
+                    child: _buildDAppGrid(dappGrid),
                   ),
                 ),
-                child: _buildDAppGrid(dappGrid),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-              // Navigation Tabs
-              _buildNavigationTabs(categories, discoverState.selectedTab),
-              const SizedBox(height: 16),
+                // NFT Section
+                NFTGridWidget(
+                  title: 'Trending NFTs',
+                  category: 'trending',
+                  showStats: true,
+                  onViewAll: () => _showAllNFTs(),
+                ),
+                const SizedBox(height: 16),
 
-              // Protocols List
-              Expanded(
-                child: _buildProtocolsList(discoverState),
-              ),
-            ],
+                // Navigation Tabs
+                _buildNavigationTabs(categories, discoverState.selectedTab),
+                const SizedBox(height: 12),
+
+                // Content based on selected tab
+                _buildTabContent(discoverState),
+              ],
+            ),
           ),
         ),
       );
@@ -281,6 +295,209 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     );
   }
 
+  Widget _buildTabContent(DiscoverState state) {
+    switch (state.selectedTab.toLowerCase()) {
+      case 'nfts':
+        return _buildNFTContent();
+      case 'protocols':
+      default:
+        return _buildProtocolsList(state);
+    }
+  }
+
+  Widget _buildNFTContent() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Recent Sales
+          NFTGridWidget(
+            title: 'Recent Sales',
+            category: 'sales',
+            showStats: false,
+          ),
+          const SizedBox(height: 24),
+
+          // Popular Collections
+          NFTGridWidget(
+            title: 'Popular Collections',
+            category: 'collections',
+            showStats: false,
+          ),
+          const SizedBox(height: 24),
+
+          // NFT Stats
+          _buildNFTStats(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNFTStats() {
+    final statsAsync = ref.watch(nftStatsProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'NFT Market Stats',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+          statsAsync.when(
+            data: (stats) => _buildStatsGrid(stats),
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+            ),
+            error: (error, stack) => Text(
+              'Error loading stats: $error',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsGrid(Map<String, dynamic> stats) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: constraints.maxWidth > 300 ? 2.5 : 2.0,
+          children: [
+            _buildStatCard('Total Volume',
+                '${stats['totalVolume']?.toStringAsFixed(1) ?? '0.0'} ETH'),
+            _buildStatCard('Avg Price',
+                '${stats['averagePrice']?.toStringAsFixed(2) ?? '0.00'} ETH'),
+            _buildStatCard('Collections', '${stats['totalCollections'] ?? 0}'),
+            _buildStatCard('Recent Sales', '${stats['totalSales'] ?? 0}'),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatCard(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6B35),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllNFTs() {
+    // Navigate to full NFT screen or show modal
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildAllNFTsModal(),
+    );
+  }
+
+  Widget _buildAllNFTsModal() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.9,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[600],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'All NFTs',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+
+          // NFT Grid
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: NFTGridWidget(
+                title: '',
+                category: 'all',
+                showStats: false,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProtocolsList(DiscoverState state) {
     if (state.isLoading) {
       return const Center(
@@ -315,17 +532,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => ref.read(discoverProvider.notifier).refreshData(),
-      color: Colors.white,
-      backgroundColor: const Color(0xFF2C2C2E),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: state.filteredProtocols.length,
-        itemBuilder: (context, index) {
-          final protocol = state.filteredProtocols[index];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: state.filteredProtocols.map((protocol) {
           return _buildProtocolItem(protocol);
-        },
+        }).toList(),
       ),
     );
   }

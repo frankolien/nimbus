@@ -6,7 +6,7 @@ part of 'swap_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$swapStateHash() => r'dec8d84c41be92000ebce0ef1cf0ce93011e65dc';
+String _$swapStateHash() => r'92027eeb76f8d2115a5a24792617f88a25ad7868';
 
 /// See also [SwapState].
 @ProviderFor(SwapState)
@@ -21,7 +21,7 @@ final swapStateProvider =
 );
 
 typedef _$SwapState = AutoDisposeNotifier<AsyncValue<SwapQuote?>>;
-String _$swapExecutionHash() => r'99a859f1b86c0febb2986d60bcefa6586e5f70f2';
+String _$swapExecutionHash() => r'dce10f0bc1c70001402cbf292d3cff7fb78ccc73';
 
 /// See also [SwapExecution].
 @ProviderFor(SwapExecution)

@@ -107,8 +107,21 @@ final dappGridProvider = Provider<List<DApp>>((ref) {
 
 final categoriesProvider = Provider<List<String>>((ref) {
   try {
-    return DAppService.getCategories();
+    final categories = DAppService.getCategories();
+    // Add NFTs tab if not already present
+    if (!categories.contains('NFTs')) {
+      categories.insert(0, 'NFTs');
+    }
+    return categories;
   } catch (e) {
-    return ['Favourites', 'Defi', 'Staking', 'Bridge', 'Lending', 'Dex'];
+    return [
+      'NFTs',
+      'Favourites',
+      'Defi',
+      'Staking',
+      'Bridge',
+      'Lending',
+      'Dex'
+    ];
   }
 });
