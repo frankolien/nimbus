@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 class DApp {
   final String name;
   final String logoUrl;
@@ -275,20 +278,26 @@ class DAppService {
     return _protocols.where((protocol) => protocol.isFavorite).toList();
   }
 
-  // Fetch real-time TVL data (mock for now)
+  // Fetch real-time TVL data from DeFiLlama API
   static Future<void> fetchRealTimeData() async {
-    // In a real implementation, this would fetch from DeFiLlama API
-    // For now, we'll simulate some data updates
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // Use real DeFiLlama API for TVL data
+      final response = await http.get(
+        Uri.parse('https://api.llama.fi/protocols'),
+      );
 
-    // Simulate TVL updates
-    for (int i = 0; i < _protocols.length; i++) {
-      final protocol = _protocols[i];
-      final randomTvl = (1000000 +
-              (i * 500000) +
-              (DateTime.now().millisecondsSinceEpoch % 1000000))
-          .toDouble();
-      _protocols[i] = protocol.copyWith(tvl: randomTvl);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Update protocols with real TVL data
+        for (int i = 0; i < _protocols.length && i < data.length; i++) {
+          final protocolData = data[i];
+          final tvl = (protocolData['tvl'] ?? 0).toDouble();
+          _protocols[i] = _protocols[i].copyWith(tvl: tvl);
+        }
+      }
+    } catch (e) {
+      print('❌ Error fetching real-time TVL data: $e');
+      // Keep existing data if API fails
     }
   }
 

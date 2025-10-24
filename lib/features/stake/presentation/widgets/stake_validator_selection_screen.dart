@@ -222,7 +222,7 @@ class _StakeValidatorSelectionScreenState
         .toList();
 
     if (validators.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -231,7 +231,7 @@ class _StakeValidatorSelectionScreenState
               size: 64,
               color: Colors.white24,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'No validators found',
               style: TextStyle(

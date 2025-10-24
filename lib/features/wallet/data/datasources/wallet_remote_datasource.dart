@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:web3dart/web3dart.dart';
 import 'package:reown_appkit/reown_appkit.dart';
 import '../../../../core/configs/env_config.dart';
+import '../../../../shared/services/blockchain_balance_service.dart';
 
 abstract class WalletRemoteDataSource {
   Future<String> connectWallet();
@@ -55,28 +56,17 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       if (_appKitModal != null && _context != null) {
         // Open the wallet connection modal
         _appKitModal!.openModalView();
-
-        // For now, using mock implementation
-        // TODO: Implement proper event listening for connection
-        await Future.delayed(const Duration(seconds: 2));
-
-        // Mock connected address
-        _connectedAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
         print('✅ Wallet connection modal opened');
-        return _connectedAddress!;
+
+        // Wait for user to connect their wallet
+        // This should be handled by proper event listeners
+        throw Exception('Wallet connection requires user interaction');
       }
 
-      // Fallback to mock implementation
-      await Future.delayed(const Duration(seconds: 1));
-      _connectedAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-      print('🔄 Using mock wallet: $_connectedAddress');
-      return _connectedAddress!;
+      throw Exception('Wallet connection modal not available');
     } catch (e) {
       print('❌ Wallet connection error: $e');
-      // Fallback to mock for development
-      await Future.delayed(const Duration(seconds: 1));
-      _connectedAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-      return _connectedAddress!;
+      rethrow;
     }
   }
 
@@ -104,19 +94,22 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
   @override
   Future<List<Map<String, dynamic>>> getTokenBalances(String address) async {
     try {
-      // Mock token balances for development
-      return [
-        {
-          'symbol': 'ETH',
-          'balance': '0.0', // Real balance will be fetched from blockchain
-          'decimals': 18,
-        },
-        {
-          'symbol': 'USDC',
-          'balance': '0.0', // Real balance will be fetched from blockchain
-          'decimals': 6,
-        },
-      ];
+      // Use real blockchain balance service
+      final balances = await BlockchainBalanceService.getAllBalances(address);
+
+      final tokenBalances = <Map<String, dynamic>>[];
+
+      balances.forEach((symbol, balance) {
+        if (balance > 0) {
+          tokenBalances.add({
+            'symbol': symbol,
+            'balance': balance.toString(),
+            'decimals': symbol == 'ETH' ? 18 : 6,
+          });
+        }
+      });
+
+      return tokenBalances;
     } catch (e) {
       throw Exception('Failed to get token balances: $e');
     }
@@ -140,21 +133,13 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
     }
 
     try {
-      // For now, using mock implementation
-      // TODO: Implement proper transaction signing with Reown AppKit
-      await Future.delayed(const Duration(seconds: 1));
-      final txHash =
-          '0x${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
-      print('✅ Transaction signed (mock): $txHash');
-      return txHash;
+      // Use real transaction signing with Reown AppKit
+      // This requires proper implementation with the AppKit SDK
+      throw Exception(
+          'Transaction signing requires proper AppKit implementation');
     } catch (e) {
       print('❌ Transaction signing error: $e');
-      // Fallback to mock for development
-      await Future.delayed(const Duration(seconds: 1));
-      final txHash =
-          '0x${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
-      print('🔄 Using mock transaction: $txHash');
-      return txHash;
+      rethrow;
     }
   }
 
@@ -165,9 +150,9 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
     }
 
     try {
-      // Mock transaction sending
-      await Future.delayed(const Duration(seconds: 2));
-      return '0x${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+      // Use real transaction sending with blockchain service
+      throw Exception(
+          'Real transaction sending requires blockchain service integration');
     } catch (e) {
       throw Exception('Failed to send transaction: $e');
     }

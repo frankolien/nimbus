@@ -22,28 +22,9 @@ class SwapState extends _$SwapState {
     state = const AsyncValue.loading();
 
     try {
-      // Mock swap quote for now - replace with real API call when ready
-      await Future.delayed(const Duration(seconds: 1));
-      final quote = SwapQuote(
-        sellToken: sellToken,
-        buyToken: buyToken,
-        sellAmount: sellAmount,
-        buyAmount:
-            (double.parse(sellAmount) * 0.95).toString(), // Mock 5% slippage
-        price: '1.0',
-        gasPrice: '0.00000002',
-        gas: '21000',
-        allowanceTarget: '0x0000000000000000000000000000000000000000',
-        to: '0x0000000000000000000000000000000000000000',
-        data: '0x',
-        value: '0',
-        estimatedGas: '21000',
-        protocolFee: '0.003',
-        minimumProtocolFee: '0.001',
-        buyTokenToEthRate: '1.0',
-        sellTokenToEthRate: '1.0',
-      );
-      state = AsyncValue.data(quote);
+      // Use real swap API (1inch, Uniswap, etc.)
+      throw Exception(
+          'Real swap API integration required - implement 1inch or Uniswap API');
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }
@@ -54,9 +35,9 @@ class SwapState extends _$SwapState {
     required String walletAddress,
   }) async {
     try {
-      // Mock swap execution for now
-      await Future.delayed(const Duration(seconds: 2));
-      return '0x${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+      // Use real swap execution with blockchain transaction service
+      throw Exception(
+          'Real swap execution requires blockchain transaction service integration');
     } catch (error) {
       rethrow;
     }
@@ -82,11 +63,9 @@ class SwapExecution extends _$SwapExecution {
     state = const AsyncValue.loading();
 
     try {
-      // Mock swap execution for now
-      await Future.delayed(const Duration(seconds: 2));
-      final transactionHash =
-          '0x${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
-      state = AsyncValue.data(transactionHash);
+      // Use real swap execution with blockchain transaction service
+      throw Exception(
+          'Real swap execution requires blockchain transaction service integration');
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/send_provider.dart';
-import 'review_transfer_modal.dart';
+import '../../../../shared/services/blockchain_transaction_service.dart';
+import '../../../../features/wallet/presentation/providers/wallet_provider.dart';
 
 class ConfirmationScreen extends ConsumerWidget {
   const ConfirmationScreen({super.key});
@@ -38,7 +39,7 @@ class ConfirmationScreen extends ConsumerWidget {
         // Fixed Action Buttons
         Container(
           padding: const EdgeInsets.all(16.0),
-          child: _buildActionButtons(context, sendNotifier),
+          child: _buildActionButtons(context, ref, sendNotifier),
         ),
       ],
     );
@@ -191,14 +192,15 @@ class ConfirmationScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, SendNotifier notifier) {
+  Widget _buildActionButtons(
+      BuildContext context, WidgetRef ref, SendNotifier notifier) {
     return Column(
       children: [
         // Send Button
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => _showReviewTransferModal(context),
+            onPressed: () => _executeTransaction(context, ref),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF6B35),
               foregroundColor: Colors.white,
@@ -245,12 +247,135 @@ class ConfirmationScreen extends ConsumerWidget {
     );
   }
 
-  void _showReviewTransferModal(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _executeTransaction(BuildContext context, WidgetRef ref) async {
+    final sendState = ref.read(sendNotifierProvider);
+    final walletState = ref.read(walletStateProvider);
+
+    // sendState is already SendStateData type, no need to check
+
+    if (walletState.hasError) {
+      _showErrorSnackBar(context, 'Wallet error: ${walletState.error}');
+      return;
+    }
+
+    if (walletState.isLoading) {
+      _showErrorSnackBar(context, 'Wallet is loading');
+      return;
+    }
+
+    final wallet = walletState.value;
+    if (wallet == null) {
+      _showErrorSnackBar(context, 'Wallet not found');
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const ReviewTransferModal(),
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        backgroundColor: Color(0xFF1A1A1A),
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: Color(0xFFFF6B35)),
+            SizedBox(width: 16),
+            Text(
+              'Sending transaction...',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Get gas price
+      final gasPrice = await BlockchainTransactionService.getGasPrice();
+
+      Map<String, dynamic> result;
+
+      // For now, assume ETH transaction (you can add token selection logic)
+      result = await BlockchainTransactionService.sendEthTransaction(
+        fromAddress: wallet.address,
+        toAddress: sendState.recipientAddress,
+        privateKey: '', // This needs to be retrieved from secure storage
+        amountInEth: sendState.amount,
+        gasPrice: gasPrice,
+        gasLimit: '0x5208', // 21000 gas for ETH transfer
+      );
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+
+        if (result['success'] == true) {
+          // Show success dialog
+          _showSuccessDialog(context, result);
+        } else {
+          _showErrorSnackBar(context, result['error'] ?? 'Transaction failed');
+        }
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        _showErrorSnackBar(context, 'Transaction failed: $e');
+      }
+    }
+  }
+
+  void _showSuccessDialog(BuildContext context, Map<String, dynamic> result) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Transaction Sent!',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Amount: ${result['amount']} ${result['tokenContract'] != null ? 'tokens' : 'ETH'}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'To: ${result['to']}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Hash: ${result['txHash']}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Go back to home
+            },
+            child: const Text(
+              'Done',
+              style: TextStyle(color: Color(0xFFFF6B35)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 }

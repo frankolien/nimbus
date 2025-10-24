@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web3dart/web3dart.dart';
-import 'package:crypto/crypto.dart';
+import '../../../../shared/services/blockchain_balance_service.dart';
 
 class CustodialWalletService {
   static const String _storageKeyPrefix = 'custodial_wallet_';
@@ -146,9 +145,9 @@ class CustodialWalletService {
       }
 
       // Sign the transaction
-      // For now, return a mock signature - in production you'd use web3dart's signing
-      final mockSignature = _generateMockTransactionHash();
-      return mockSignature;
+      // Real transaction signing implementation required
+      throw Exception(
+          'Real transaction signing requires web3dart implementation');
     } catch (e) {
       throw CustodialWalletException('Failed to sign transaction: $e');
     }
@@ -163,15 +162,9 @@ class CustodialWalletService {
       }
 
       // This would typically involve sending to a blockchain node
-      // For now, we'll return a mock transaction hash
-      final txHash = _generateMockTransactionHash();
-
-      // In a real implementation, you would:
-      // 1. Send the signed transaction to a blockchain node
-      // 2. Wait for confirmation
-      // 3. Return the actual transaction hash
-
-      return txHash;
+      // Real transaction execution implementation required
+      throw Exception(
+          'Real transaction execution requires blockchain service integration');
     } catch (e) {
       throw CustodialWalletException('Failed to send transaction: $e');
     }
@@ -185,9 +178,12 @@ class CustodialWalletService {
         return 0.0;
       }
 
-      // In a real implementation, you would query the blockchain
-      // For now, return a mock balance
-      return _getMockBalance(wallet.address);
+      // Use real blockchain balance service
+      final balances =
+          await BlockchainBalanceService.getAllBalances(wallet.address);
+
+      // Return ETH balance as primary balance
+      return balances['ETH'] ?? 0.0;
     } catch (e) {
       throw CustodialWalletException('Failed to get balance: $e');
     }
@@ -277,21 +273,6 @@ class CustodialWalletService {
     }
 
     return selectedWords.join(' ');
-  }
-
-  /// Generate mock transaction hash
-  String _generateMockTransactionHash() {
-    final random = Random.secure();
-    final bytes = List.generate(32, (index) => random.nextInt(256));
-    return '0x${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
-  }
-
-  /// Get mock balance based on address
-  double _getMockBalance(String address) {
-    // Generate a consistent mock balance based on address
-    final hash = sha256.convert(utf8.encode(address));
-    final hashInt = hash.bytes.fold(0, (prev, byte) => prev + byte);
-    return (hashInt % 1000) + 100.0; // Balance between 100-1099
   }
 }
 

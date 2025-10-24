@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
-import 'blockchain_balance_service.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 import '../../core/configs/api_keys.dart';
 

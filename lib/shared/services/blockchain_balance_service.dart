@@ -118,8 +118,8 @@ class BlockchainBalanceService {
   /// Get real USDC balance for an Ethereum wallet address
   static Future<double> getUsdcBalance(String walletAddress) async {
     try {
-      // USDC contract address on Ethereum mainnet
-      const usdcContractAddress = '0xA0b86a33E6441c8C4C4C4C4C4C4C4C4C4C4C4C4C';
+      // USDC contract address on Ethereum mainnet (Circle's official USDC)
+      const usdcContractAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 
       final response = await http.post(
         Uri.parse(_ethereumMainnetRpc),
@@ -141,11 +141,27 @@ class BlockchainBalanceService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['result'] != null) {
+        if (data['result'] != null && data['result'] != '0x') {
           // USDC has 6 decimals
           final balanceHex = data['result'] as String;
-          final balance = int.parse(balanceHex.substring(2), radix: 16);
-          return balance / 1000000.0; // Convert to USDC
+
+          // Remove '0x' prefix and validate hex string
+          String cleanHex = balanceHex.startsWith('0x')
+              ? balanceHex.substring(2)
+              : balanceHex;
+
+          // If empty or invalid, return 0
+          if (cleanHex.isEmpty) {
+            return 0.0;
+          }
+
+          try {
+            final balance = int.parse(cleanHex, radix: 16);
+            return balance / 1000000.0; // Convert to USDC
+          } catch (e) {
+            print('❌ Error parsing USDC hex: $cleanHex - $e');
+            return 0.0;
+          }
         }
       }
 
@@ -183,11 +199,27 @@ class BlockchainBalanceService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['result'] != null) {
+        if (data['result'] != null && data['result'] != '0x') {
           // USDT has 6 decimals
           final balanceHex = data['result'] as String;
-          final balance = int.parse(balanceHex.substring(2), radix: 16);
-          return balance / 1000000.0; // Convert to USDT
+
+          // Remove '0x' prefix and validate hex string
+          String cleanHex = balanceHex.startsWith('0x')
+              ? balanceHex.substring(2)
+              : balanceHex;
+
+          // If empty or invalid, return 0
+          if (cleanHex.isEmpty) {
+            return 0.0;
+          }
+
+          try {
+            final balance = int.parse(cleanHex, radix: 16);
+            return balance / 1000000.0; // Convert to USDT
+          } catch (e) {
+            print('❌ Error parsing USDT hex: $cleanHex - $e');
+            return 0.0;
+          }
         }
       }
 

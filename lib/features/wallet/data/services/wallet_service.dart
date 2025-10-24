@@ -11,18 +11,19 @@ class WalletService {
 
   void initializeAppKit(BuildContext context) {
     // Initialize WalletConnect AppKit
-    // For now, we'll use a mock implementation
+    // This should be implemented with proper AppKit SDK
   }
 
   Future<void> connectWallet(BuildContext context) async {
-    // Simulate wallet connection for now
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Mock connected wallet - this will be handled by the provider
+    // Real wallet connection logic
+    // This should be implemented with proper wallet connection flow
+    throw Exception('Real wallet connection requires proper implementation');
   }
 
   Future<void> disconnectWallet() async {
-    // Disconnect logic - this will be handled by the provider
+    // Real disconnect logic
+    // This should be implemented with proper wallet disconnection
+    throw Exception('Real wallet disconnection requires proper implementation');
   }
 
   Future<List<TokenBalance>> getTokenBalances(String? walletAddress) async {
@@ -40,25 +41,18 @@ class WalletService {
       // Convert to TokenBalance objects
       final tokenBalances = <TokenBalance>[];
 
+      // Always add all tokens, even with 0 balance, to show real data
       realBalances.forEach((symbol, balance) {
-        if (balance > 0) {
-          tokenBalances.add(TokenBalance(
-            contractAddress: _getContractAddress(symbol),
-            tokenBalance: (balance * _getTokenMultiplier(symbol)).toString(),
-            name: _getTokenName(symbol),
-            symbol: symbol,
-            decimals: _getTokenDecimals(symbol),
-          ));
-        }
+        tokenBalances.add(TokenBalance(
+          contractAddress: _getContractAddress(symbol),
+          tokenBalance: (balance * _getTokenMultiplier(symbol)).toString(),
+          name: _getTokenName(symbol),
+          symbol: symbol,
+          decimals: _getTokenDecimals(symbol),
+        ));
       });
 
-      // Only add mock balances if no real balances were found
-      if (tokenBalances.isEmpty) {
-        tokenBalances.addAll(_getMockTokenBalances());
-        print('💰 No real balances found (RPC rate limited), using mock data');
-      } else {
-        print('💰 Real token balances fetched: ${tokenBalances.length} tokens');
-      }
+      print('💰 Real token balances fetched: ${tokenBalances.length} tokens');
 
       return tokenBalances;
     } catch (e) {

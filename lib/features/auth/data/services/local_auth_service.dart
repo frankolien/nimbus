@@ -1,9 +1,7 @@
-import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
-import 'dart:io';
 
 class LocalAuthService {
   final LocalAuthentication _localAuth = LocalAuthentication();

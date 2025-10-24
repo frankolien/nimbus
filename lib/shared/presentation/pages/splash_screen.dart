@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/features/wallet/presentation/pages/wallet_connection_screen.dart';
@@ -14,6 +15,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   bool _hasNavigated = false;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -21,32 +23,38 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     _checkWalletAndNavigate();
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   _checkWalletAndNavigate() async {
-    await Future.delayed(const Duration(seconds: 2));
+    _timer = Timer(const Duration(seconds: 2), () async {
+      if (mounted && !_hasNavigated) {
+        // Try to load existing wallet first
+        final walletStateNotifier = ref.read(walletStateProvider.notifier);
 
-    if (mounted && !_hasNavigated) {
-      // Try to load existing wallet first
-      final walletStateNotifier = ref.read(walletStateProvider.notifier);
+        try {
+          // Attempt to connect to existing wallet
+          await walletStateNotifier.connectWallet();
 
-      try {
-        // Attempt to connect to existing wallet
-        await walletStateNotifier.connectWallet();
-
-        // The listener will handle navigation when the state updates
-        print('🔍 Attempted to connect wallet, waiting for state update...');
-      } catch (e) {
-        print('⚠️ Error loading wallet on startup: $e');
-        if (mounted && !_hasNavigated) {
-          _hasNavigated = true;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const WalletConnectionScreen(),
-            ),
-          );
+          // The listener will handle navigation when the state updates
+          print('🔍 Attempted to connect wallet, waiting for state update...');
+        } catch (e) {
+          print('⚠️ Error loading wallet on startup: $e');
+          if (mounted && !_hasNavigated) {
+            _hasNavigated = true;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const WalletConnectionScreen(),
+              ),
+            );
+          }
         }
       }
-    }
+    });
   }
 
   @override
