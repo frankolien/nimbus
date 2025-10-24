@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web3dart/web3dart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/services/blockchain_balance_service.dart';
 
 class CustodialWalletService {
@@ -320,3 +321,8 @@ class CustodialWalletException implements Exception {
   @override
   String toString() => 'CustodialWalletException: $message';
 }
+
+// Provider for CustodialWalletService
+final custodialWalletServiceProvider = Provider<CustodialWalletService>((ref) {
+  return CustodialWalletService();
+});

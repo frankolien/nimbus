@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:nimbus/features/wallet/data/services/custodial_wallet_service.dart';
 
 class WalletSettingsScreen extends ConsumerStatefulWidget {
   const WalletSettingsScreen({super.key});

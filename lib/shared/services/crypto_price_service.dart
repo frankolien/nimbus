@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:nimbus/features/wallet/data/services/wallet_service.dart';
 import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:nimbus/shared/services/blockchain_balance_service.dart';
 import '../../core/configs/api_keys.dart';
 
 class CryptoPrice {
@@ -28,10 +28,8 @@ class CryptoPrice {
 
 class CryptoPriceService {
   final http.Client _client;
-  final Ref _ref;
 
-  CryptoPriceService(this._ref, {http.Client? client})
-      : _client = client ?? http.Client();
+  CryptoPriceService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<List<CryptoPrice>> getCryptoPrices(String? walletAddress) async {
     try {
@@ -42,30 +40,60 @@ class CryptoPriceService {
 
       // Try to fetch from CoinGecko API first
       try {
-        final apiKey = ApiKeys.coinGeckoApiKey != 'your_coingecko_api_key_here'
+        final apiKey = ApiKeys.coinGeckoApiKey.isNotEmpty &&
+                ApiKeys.coinGeckoApiKey != 'your_coingecko_api_key_here'
             ? '&x_cg_demo_api_key=${ApiKeys.coinGeckoApiKey}'
             : '';
 
-        final response = await _client.get(
-          Uri.parse(
-              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true$apiKey'),
-        );
+        final url =
+            'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true$apiKey';
+        print('🔍 Fetching from CoinGecko: $url');
+
+        final response = await _client.get(Uri.parse(url));
+
+        print('📡 CoinGecko response status: ${response.statusCode}');
+        print(
+            '📡 CoinGecko response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
+          print('✅ CoinGecko data received successfully');
           return _parseCoinGeckoData(data, walletBalances);
+        } else {
+          print(
+              '❌ CoinGecko API error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        print('CoinGecko API failed: $e');
+        print('❌ CoinGecko API failed: $e');
       }
 
-      // Fallback to mock data if API fails
-      print('Using mock crypto prices...');
-      return _getMockCryptoPricesWithBalances(walletBalances);
+      // Try free CoinGecko API without API key as fallback
+      try {
+        final freeUrl =
+            'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true';
+        print('🔄 Trying free CoinGecko API: $freeUrl');
+
+        final response = await _client.get(Uri.parse(freeUrl));
+
+        print('📡 Free CoinGecko response status: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          print('✅ Free CoinGecko data received successfully');
+          return _parseCoinGeckoData(data, walletBalances);
+        } else {
+          print(
+              '❌ Free CoinGecko API error: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        print('❌ Free CoinGecko API failed: $e');
+      }
+
+      // If all APIs fail, throw an error instead of using mock data
+      throw Exception('Failed to fetch crypto prices from all sources');
     } catch (e) {
       print('Error fetching crypto prices: $e');
-      print('Falling back to mock data...');
-      return _getMockCryptoPricesWithBalances({});
+      throw Exception('Failed to fetch crypto prices: $e');
     }
   }
 
@@ -141,75 +169,18 @@ class CryptoPriceService {
     return cryptoPrices;
   }
 
-  List<CryptoPrice> _getMockCryptoPricesWithBalances(
-      Map<String, double> walletBalances) {
-    // Current realistic prices (as of December 2024)
-    return [
-      CryptoPrice(
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        price: 68000.00,
-        change24h: -2.1,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
-        balance: walletBalances['BTC'] ?? 0.0,
-        balanceValue: (walletBalances['BTC'] ?? 0.0) * 68000.00,
-      ),
-      CryptoPrice(
-        symbol: 'ETH',
-        name: 'Ethereum',
-        price: 3500.00,
-        change24h: 3.2,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
-        balance: walletBalances['ETH'] ?? 0.0,
-        balanceValue: (walletBalances['ETH'] ?? 0.0) * 3500.00,
-      ),
-      CryptoPrice(
-        symbol: 'SOL',
-        name: 'Solana',
-        price: 188.91,
-        change24h: 2.5,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/4128/small/solana.png',
-        balance: walletBalances['SOL'] ?? 0.0,
-        balanceValue: (walletBalances['SOL'] ?? 0.0) * 188.91,
-      ),
-      CryptoPrice(
-        symbol: 'USDT',
-        name: 'Tether',
-        price: 1.00,
-        change24h: 0.01,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/325/small/Tether.png',
-        balance: walletBalances['USDT'] ?? 0.0,
-        balanceValue: (walletBalances['USDT'] ?? 0.0) * 1.00,
-      ),
-      CryptoPrice(
-        symbol: 'TON',
-        name: 'Toncoin',
-        price: 6.85,
-        change24h: -1.2,
-        imageUrl:
-            'https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png',
-        balance: walletBalances['TON'] ?? 0.0,
-        balanceValue: (walletBalances['TON'] ?? 0.0) * 6.85,
-      ),
-    ];
-  }
-
   Future<Map<String, double>> _getWalletBalances(String? walletAddress) async {
     try {
-      // Get token balances from wallet service
-      final walletService = _ref.read(walletServiceProvider);
-      final tokenBalances = await walletService.getTokenBalances(walletAddress);
+      // Get token balances from blockchain service directly
+      final balances =
+          await BlockchainBalanceService.getAllBalances(walletAddress!);
 
-      Map<String, double> balances = {};
-      for (var token in tokenBalances) {
-        balances[token.symbol.toUpperCase()] = token.balance;
-      }
+      Map<String, double> walletBalances = {};
+      balances.forEach((symbol, balance) {
+        walletBalances[symbol.toUpperCase()] = balance;
+      });
 
-      return balances;
+      return walletBalances;
     } catch (e) {
       print('Error getting wallet balances: $e');
       return {};
@@ -223,7 +194,7 @@ class CryptoPriceService {
 
 // Provider for crypto price service
 final cryptoPriceServiceProvider = Provider<CryptoPriceService>((ref) {
-  return CryptoPriceService(ref);
+  return CryptoPriceService();
 });
 
 // Provider for crypto prices with auto-refresh

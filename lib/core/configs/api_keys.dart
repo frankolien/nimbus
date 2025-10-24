@@ -1,27 +1,51 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 // API Keys Configuration for Nimbus Crypto Wallet
-// Add your actual API keys here and keep this file secure
+// All API keys are now loaded from environment variables for security
 
 class ApiKeys {
   // Ankr RPC API Key (Free tier: 500 requests/minute)
-  static const String ankrApiKey =
-      'd14ff8ec300b9cc41102e488649e5b170196520b5dbbfe1c86a7cc935574f583';
+  static String get ankrApiKey => dotenv.env['ANKR_API_KEY'] ?? '';
 
   // Alchemy API Key (NFT API and Ethereum RPC)
-  static const String alchemyApiKey = 'Y19RYqOY9zsJv4ZIAAKWu';
+  static String get alchemyApiKey => dotenv.env['ALCHEMY_API_KEY'] ?? '';
 
   // CoinGecko API Key (Optional - for higher rate limits)
-  static const String coinGeckoApiKey = 'your_coingecko_api_key_here';
+  static String get coinGeckoApiKey => dotenv.env['COINGECKO_API_KEY'] ?? '';
 
   // Infura API Key (Optional - for backup)
-  static const String infuraApiKey = 'your_infura_api_key_here';
+  static String get infuraApiKey => dotenv.env['INFURA_API_KEY'] ?? '';
 
   // QuickNode API Key (Optional - for backup)
-  static const String quickNodeApiKey = 'your_quicknode_api_key_here';
+  static String get quickNodeApiKey => dotenv.env['QUICKNODE_API_KEY'] ?? '';
 
   // Moralis API Key (Optional - for advanced features)
-  static const String moralisApiKey = 'your_moralis_api_key_here';
+  static String get moralisApiKey => dotenv.env['MORALIS_API_KEY'] ?? '';
 
   // Firebase Configuration (if using Firebase)
-  static const String firebaseApiKey = 'your_firebase_api_key_here';
-  static const String firebaseProjectId = 'your_firebase_project_id_here';
+  static String get firebaseApiKey => dotenv.env['FIREBASE_API_KEY'] ?? '';
+  static String get firebaseProjectId =>
+      dotenv.env['FIREBASE_PROJECT_ID'] ?? '';
+
+  // WalletConnect Project ID
+  static String get walletConnectProjectId =>
+      dotenv.env['WALLETCONNECT_PROJECT_ID'] ?? '';
+
+  // Payment Provider API Keys
+  static String get moonPayPublicKey => dotenv.env['MOONPAY_PUBLIC_KEY'] ?? '';
+  static String get moonPaySecretKey => dotenv.env['MOONPAY_SECRET_KEY'] ?? '';
+  static String get banxaApiKey => dotenv.env['BANXA_API_KEY'] ?? '';
+  static String get banxaSecretKey => dotenv.env['BANXA_SECRET_KEY'] ?? '';
+  static String get simplexPartnerId => dotenv.env['SIMPLEX_PARTNER_ID'] ?? '';
+  static String get simplexApiKey => dotenv.env['SIMPLEX_API_KEY'] ?? '';
+  static String get coinbaseCommerceApiKey =>
+      dotenv.env['COINBASE_COMMERCE_API_KEY'] ?? '';
+
+  // Security Configuration
+  static int get passwordHashRounds =>
+      int.tryParse(dotenv.env['PASSWORD_HASH_ROUNDS'] ?? '12') ?? 12;
+  static int get sessionTimeoutMinutes =>
+      int.tryParse(dotenv.env['SESSION_TIMEOUT_MINUTES'] ?? '30') ?? 30;
+  static int get maxLoginAttempts =>
+      int.tryParse(dotenv.env['MAX_LOGIN_ATTEMPTS'] ?? '5') ?? 5;
 }

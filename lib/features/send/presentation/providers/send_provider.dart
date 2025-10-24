@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:nimbus/shared/services/crypto_price_service.dart';
+import '../../../../core/services/input_validation_service.dart';
+import '../../../../core/services/error_handler.dart';
 
 part 'send_provider.g.dart';
 
@@ -57,10 +59,27 @@ class SendNotifier extends _$SendNotifier {
   }
 
   void updateRecipientAddress(String address) {
-    state = state.copyWith(
-      recipientAddress: address,
-      errorMessage: null,
-    );
+    // Validate the address before updating
+    final validation = InputValidationService.validateEthereumAddress(address);
+
+    if (validation.isValid) {
+      state = state.copyWith(
+        recipientAddress: address,
+        errorMessage: null,
+      );
+    } else {
+      ErrorHandler.handleError(
+        validation.message,
+        null,
+        context: 'Address validation',
+        showToUser: false, // We'll show the error in the UI
+      );
+
+      state = state.copyWith(
+        recipientAddress: address,
+        errorMessage: validation.message,
+      );
+    }
   }
 
   void updateRecipientName(String name) {
@@ -68,12 +87,44 @@ class SendNotifier extends _$SendNotifier {
   }
 
   void updateAmount(String amount) {
-    final usdAmount = _calculateUsdAmount(amount);
-    state = state.copyWith(
-      amount: amount,
-      usdAmount: usdAmount,
-      errorMessage: null,
-    );
+    // Validate the amount before updating
+    final validation = InputValidationService.validateCryptoAmount(amount);
+
+    if (validation.isValid) {
+      try {
+        final usdAmount = _calculateUsdAmount(amount);
+        state = state.copyWith(
+          amount: amount,
+          usdAmount: usdAmount,
+          errorMessage: null,
+        );
+      } catch (e) {
+        ErrorHandler.handleError(
+          e,
+          null,
+          context: 'Amount calculation',
+          additionalData: {'amount': amount},
+        );
+
+        state = state.copyWith(
+          amount: amount,
+          errorMessage: 'Failed to calculate USD amount',
+        );
+      }
+    } else {
+      ErrorHandler.handleError(
+        validation.message,
+        null,
+        context: 'Amount validation',
+        additionalData: {'amount': amount},
+        showToUser: false, // We'll show the error in the UI
+      );
+
+      state = state.copyWith(
+        amount: amount,
+        errorMessage: validation.message,
+      );
+    }
   }
 
   void setMaxAmount() {

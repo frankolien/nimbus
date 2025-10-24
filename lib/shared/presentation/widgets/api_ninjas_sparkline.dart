@@ -47,6 +47,9 @@ class _CoinGeckoSparklineState extends State<CoinGeckoSparkline> {
   }
 
   Future<void> _fetchOnce() async {
+    // Check if widget is still mounted before making any setState calls
+    if (!mounted) return;
+
     // Map timeframe to CoinGecko days parameter
     final days = _getDaysForTimeframe(_selectedTimeframe);
     final url = Uri.parse(
@@ -56,10 +59,12 @@ class _CoinGeckoSparklineState extends State<CoinGeckoSparkline> {
       final res = await http.get(url);
       if (res.statusCode != 200) {
         debugPrint('CoinGecko error ${res.statusCode}: ${res.body}');
-        setState(() {
-          _loading = false;
-          _errorMessage = 'Failed to fetch data (${res.statusCode})';
-        });
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _errorMessage = 'Failed to fetch data (${res.statusCode})';
+          });
+        }
         return;
       }
 
@@ -67,33 +72,39 @@ class _CoinGeckoSparklineState extends State<CoinGeckoSparkline> {
       final List<dynamic> prices = body['prices'] as List;
 
       if (prices.isEmpty) {
-        setState(() => _loading = false);
+        if (mounted) {
+          setState(() => _loading = false);
+        }
         return;
       }
 
       // Clear existing data and populate with new data
-      setState(() {
-        _prices.clear();
-        _timestamps.clear();
+      if (mounted) {
+        setState(() {
+          _prices.clear();
+          _timestamps.clear();
 
-        for (final priceData in prices) {
-          final timestamp =
-              (priceData[0] as num).toInt() ~/ 1000; // Convert to seconds
-          final price = (priceData[1] as num).toDouble();
-          _timestamps.add(timestamp);
-          _prices.add(price);
-        }
+          for (final priceData in prices) {
+            final timestamp =
+                (priceData[0] as num).toInt() ~/ 1000; // Convert to seconds
+            final price = (priceData[1] as num).toDouble();
+            _timestamps.add(timestamp);
+            _prices.add(price);
+          }
 
-        _latest = _prices.isNotEmpty ? _prices.last : 0.0;
-        _loading = false;
-        _errorMessage = null;
-      });
+          _latest = _prices.isNotEmpty ? _prices.last : 0.0;
+          _loading = false;
+          _errorMessage = null;
+        });
+      }
     } catch (e, st) {
       debugPrint('Failed fetch price: $e\n$st');
-      setState(() {
-        _loading = false;
-        _errorMessage = 'Network error: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _errorMessage = 'Network error: ${e.toString()}';
+        });
+      }
     }
   }
 
@@ -342,12 +353,14 @@ class _CoinGeckoSparklineState extends State<CoinGeckoSparkline> {
     final isSelected = _selectedTimeframe == timeframe;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _selectedTimeframe = timeframe;
-          _loading = true;
-          _errorMessage = null;
-        });
-        _fetchOnce(); // Fetch new data for the selected timeframe
+        if (mounted) {
+          setState(() {
+            _selectedTimeframe = timeframe;
+            _loading = true;
+            _errorMessage = null;
+          });
+          _fetchOnce(); // Fetch new data for the selected timeframe
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
