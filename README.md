@@ -2,7 +2,7 @@
 
 A Flutter-based Web3 dApp for buying, sending, exchanging, and receiving cryptocurrencies with clean architecture.
 
-## 🚀 Features
+##  Features
 
 - **Real Blockchain Integration**: Connect to Ethereum and Solana networks
 - **Crypto Trading**: Buy crypto with fiat through multiple payment providers
@@ -11,7 +11,7 @@ A Flutter-based Web3 dApp for buying, sending, exchanging, and receiving cryptoc
 - **DApp Discovery**: Browse and interact with Web3 applications
 - **Staking**: Stake SOL with validators on Solana network
 
-## 🔑 API Keys Setup
+##  API Keys Setup
 
 ### Required API Keys
 
@@ -51,19 +51,19 @@ class ApiKeys {
 3. Add your API keys to `lib/core/configs/api_keys.dart`
 4. Run the app: `flutter run`
 
-## 📱 Supported Networks
+## Supported Networks
 
 - **Ethereum Mainnet**: ETH, USDC, USDT
 - **Solana Mainnet**: SOL
 - **Payment Providers**: Banxa, MoonPay, Simplex, Coinbase, Binance
 
-## 🔒 Security
+##  Security
 
 - Private keys are encrypted and stored securely
 - All API keys are kept in configuration files (not committed to git)
 - Real blockchain integration for accurate balance tracking
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License.
 
