@@ -13,38 +13,60 @@ class AssetSelectionScreen extends ConsumerStatefulWidget {
 }
 
 class _AssetSelectionScreenState extends ConsumerState<AssetSelectionScreen> {
-  final List<Map<String, dynamic>> _cryptoAssets = [
-    {
-      'symbol': 'SOL',
-      'name': 'Solana',
-      'icon': '🟣',
-      'address': 'Epjjihdshvhvshvhudshuhuhfuuvhuhjdjihiswhshwhsuhwswushuwwwsw',
-    },
-    {
-      'symbol': 'USDT',
-      'name': 'Tether',
-      'icon': '🟢',
-      'address': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-    },
-    {
-      'symbol': 'TON',
-      'name': 'Toncoin',
-      'icon': '🔵',
-      'address': 'EQD0vdSA_NedR9uvbgd9R0p4x-TNP8SF5VcRqqD_LLa0c5k5',
-    },
-    {
-      'symbol': 'ETH',
-      'name': 'Ethereum',
-      'icon': '⚪',
-      'address': '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
-    },
-    {
-      'symbol': 'BTC',
-      'name': 'Bitcoin',
-      'icon': '🟠',
-      'address': '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
-    },
-  ];
+  List<Map<String, dynamic>> get _cryptoAssets {
+    final receiveState = ref.watch(receiveNotifierProvider);
+    final walletAddress = receiveState.walletAddress ?? '';
+    final balances = receiveState.realBalances ?? {};
+
+    // Use real wallet address for all assets
+    return [
+      {
+        'symbol': 'SOL',
+        'name': 'Solana',
+        'icon': '🟣',
+        'address': walletAddress.isEmpty
+            ? 'Epjjihdshvhvshvhudshuhuhfuuvhuhjdjihiswhshwhsuhwswushuwwwsw'
+            : walletAddress,
+        'balance': balances['SOL'] ?? 0.0,
+      },
+      {
+        'symbol': 'USDT',
+        'name': 'Tether',
+        'icon': '🟢',
+        'address': walletAddress.isEmpty
+            ? '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+            : walletAddress,
+        'balance': balances['USDT'] ?? 0.0,
+      },
+      {
+        'symbol': 'TON',
+        'name': 'Toncoin',
+        'icon': '🔵',
+        'address': walletAddress.isEmpty
+            ? 'EQD0vdSA_NedR9uvbgd9R0p4x-TNP8SF5VcRqqD_LLa0c5k5'
+            : walletAddress,
+        'balance': balances['TON'] ?? 0.0,
+      },
+      {
+        'symbol': 'ETH',
+        'name': 'Ethereum',
+        'icon': '⚪',
+        'address': walletAddress.isEmpty
+            ? '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'
+            : walletAddress,
+        'balance': balances['ETH'] ?? 0.0,
+      },
+      {
+        'symbol': 'BTC',
+        'name': 'Bitcoin',
+        'icon': '🟠',
+        'address': walletAddress.isEmpty
+            ? '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+            : walletAddress,
+        'balance': balances['BTC'] ?? 0.0,
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {

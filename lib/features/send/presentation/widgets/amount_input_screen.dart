@@ -124,7 +124,7 @@ class _AmountInputScreenState extends ConsumerState<AmountInputScreen> {
         Row(
           children: [
             Text(
-              '${state.solBalance.toStringAsFixed(2)} SOL',
+              '${state.solBalance.toStringAsFixed(2)} ${state.selectedAsset}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -190,8 +190,8 @@ class _AmountInputScreenState extends ConsumerState<AmountInputScreen> {
               },
             ),
             const SizedBox(height: 8),
-            const Text(
-              'SOL',
+            Text(
+              state.selectedAsset,
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,

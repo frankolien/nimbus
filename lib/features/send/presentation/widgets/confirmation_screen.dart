@@ -76,7 +76,7 @@ class ConfirmationScreen extends ConsumerWidget {
                 ),
               ),
               Text(
-                '${state.amount} SOL',
+                '${state.amount} ${state.selectedAsset}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -156,11 +156,16 @@ class ConfirmationScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _buildDetailRow('Network Fee', '0.000005 SOL'),
-          _buildDetailRow('Estimated Time', '~2 seconds'),
-          _buildDetailRow('Network', 'Solana'),
+          _buildDetailRow(
+              'Network Fee',
+              state.selectedAsset == 'SOL'
+                  ? '0.000005 SOL'
+                  : _getNetworkFee(state.selectedAsset)),
+          _buildDetailRow(
+              'Estimated Time', _getEstimatedTime(state.selectedAsset)),
+          _buildDetailRow('Network', _getNetworkName(state.selectedAsset)),
           _buildDetailRow('Remaining Balance',
-              '${(state.solBalance - double.tryParse(state.amount)!).toStringAsFixed(2)} SOL'),
+              '${(state.solBalance - double.tryParse(state.amount)!).toStringAsFixed(2)} ${state.selectedAsset}'),
         ],
       ),
     );
@@ -377,5 +382,55 @@ class ConfirmationScreen extends ConsumerWidget {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  String _getNetworkFee(String asset) {
+    switch (asset) {
+      case 'SOL':
+        return '0.000005 SOL';
+      case 'ETH':
+        return '0.001 ETH';
+      case 'BTC':
+        return '0.0001 BTC';
+      case 'USDT':
+        return '0.01 USDT';
+      case 'TON':
+        return '0.01 TON';
+      default:
+        return '~\$0.05';
+    }
+  }
+
+  String _getEstimatedTime(String asset) {
+    switch (asset) {
+      case 'SOL':
+        return '~2 seconds';
+      case 'ETH':
+        return '~15 seconds';
+      case 'BTC':
+        return '~10 minutes';
+      case 'USDT':
+        return '~15 seconds';
+      case 'TON':
+        return '~5 seconds';
+      default:
+        return '~1 minute';
+    }
+  }
+
+  String _getNetworkName(String asset) {
+    switch (asset) {
+      case 'SOL':
+        return 'Solana';
+      case 'ETH':
+      case 'USDT':
+        return 'Ethereum';
+      case 'BTC':
+        return 'Bitcoin';
+      case 'TON':
+        return 'TON';
+      default:
+        return asset;
+    }
   }
 }

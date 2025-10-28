@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/send_provider.dart';
+import '../widgets/asset_selection_screen.dart';
 import '../widgets/address_input_screen.dart';
 import '../widgets/amount_input_screen.dart';
 import '../widgets/confirmation_screen.dart';
@@ -25,11 +26,18 @@ class _SendPageState extends ConsumerState<SendPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            final notifier = ref.read(sendNotifierProvider.notifier);
+            if (sendState.currentStep == SendStep.assetSelection) {
+              Navigator.of(context).pop();
+            } else {
+              notifier.previousStep();
+            }
+          },
         ),
-        title: const Text(
-          'Send SOL',
-          style: TextStyle(
+        title: Text(
+          _getTitle(sendState),
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -48,6 +56,8 @@ class _SendPageState extends ConsumerState<SendPage> {
 
   Widget _getCurrentScreen(SendStep step) {
     switch (step) {
+      case SendStep.assetSelection:
+        return const AssetSelectionScreen();
       case SendStep.addressInput:
         return const AddressInputScreen();
       case SendStep.amountInput:
@@ -68,5 +78,12 @@ class _SendPageState extends ConsumerState<SendPage> {
         duration: Duration(seconds: 1),
       ),
     );
+  }
+
+  String _getTitle(SendStateData state) {
+    if (state.selectedAsset.isEmpty || state.selectedAsset == 'SOL') {
+      return 'Send Token';
+    }
+    return 'Send ${state.selectedAsset}';
   }
 }

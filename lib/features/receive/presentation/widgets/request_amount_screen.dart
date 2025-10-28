@@ -85,7 +85,7 @@ class _RequestAmountScreenState extends ConsumerState<RequestAmountScreen> {
               ),
             ),
             IconButton(
-              onPressed: () => _toggleCurrency(notifier),
+              onPressed: () => _toggleCurrency(notifier, state.requestCurrency),
               icon: const Icon(
                 Icons.swap_vert,
                 color: Colors.white54,
@@ -266,8 +266,7 @@ class _RequestAmountScreenState extends ConsumerState<RequestAmountScreen> {
     );
   }
 
-  void _toggleCurrency(ReceiveNotifier notifier) {
-    final currentCurrency = notifier.state.requestCurrency;
+  void _toggleCurrency(ReceiveNotifier notifier, String currentCurrency) {
     final newCurrency = currentCurrency == 'USD' ? 'SOL' : 'USD';
     notifier.updateRequestCurrency(newCurrency);
   }

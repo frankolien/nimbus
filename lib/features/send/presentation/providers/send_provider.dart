@@ -1,11 +1,14 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:nimbus/shared/services/crypto_price_service.dart';
+import 'package:nimbus/shared/services/blockchain_balance_service.dart';
+import 'package:nimbus/features/wallet/presentation/providers/wallet_provider.dart';
 import '../../../../core/services/input_validation_service.dart';
 import '../../../../core/services/error_handler.dart';
 
 part 'send_provider.g.dart';
 
 enum SendStep {
+  assetSelection,
   addressInput,
   amountInput,
   confirmation,
@@ -18,15 +21,19 @@ class SendStateData {
   final String amount;
   final double solBalance;
   final double usdAmount;
+  final String selectedAsset;
+  final Map<String, double>? realBalances;
   final String? errorMessage;
 
   const SendStateData({
-    this.currentStep = SendStep.addressInput,
+    this.currentStep = SendStep.assetSelection,
     this.recipientAddress = '',
     this.recipientName = '',
     this.amount = '',
     this.solBalance = 329.27,
     this.usdAmount = 0.0,
+    this.selectedAsset = 'SOL',
+    this.realBalances,
     this.errorMessage,
   });
 
@@ -37,6 +44,8 @@ class SendStateData {
     String? amount,
     double? solBalance,
     double? usdAmount,
+    String? selectedAsset,
+    Map<String, double>? realBalances,
     String? errorMessage,
   }) {
     return SendStateData(
@@ -46,6 +55,8 @@ class SendStateData {
       amount: amount ?? this.amount,
       solBalance: solBalance ?? this.solBalance,
       usdAmount: usdAmount ?? this.usdAmount,
+      selectedAsset: selectedAsset ?? this.selectedAsset,
+      realBalances: realBalances ?? this.realBalances,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -55,7 +66,22 @@ class SendStateData {
 class SendNotifier extends _$SendNotifier {
   @override
   SendStateData build() {
+    // Load real-time balances on initialization
+    _loadRealBalances();
     return const SendStateData();
+  }
+
+  Future<void> _loadRealBalances() async {
+    try {
+      final walletAddress = ref.read(currentWalletAddressProvider);
+      if (walletAddress == null) return;
+
+      final balances =
+          await BlockchainBalanceService.getAllBalances(walletAddress);
+      state = state.copyWith(realBalances: balances);
+    } catch (e) {
+      print('Error loading real balances: $e');
+    }
   }
 
   void updateRecipientAddress(String address) {
@@ -138,6 +164,9 @@ class SendNotifier extends _$SendNotifier {
 
   void nextStep() {
     switch (state.currentStep) {
+      case SendStep.assetSelection:
+        state = state.copyWith(currentStep: SendStep.addressInput);
+        break;
       case SendStep.addressInput:
         if (state.recipientAddress.isNotEmpty) {
           state = state.copyWith(currentStep: SendStep.amountInput);
@@ -156,8 +185,11 @@ class SendNotifier extends _$SendNotifier {
 
   void previousStep() {
     switch (state.currentStep) {
-      case SendStep.addressInput:
+      case SendStep.assetSelection:
         // Already at first step
+        break;
+      case SendStep.addressInput:
+        state = state.copyWith(currentStep: SendStep.assetSelection);
         break;
       case SendStep.amountInput:
         state = state.copyWith(currentStep: SendStep.addressInput);
@@ -176,8 +208,14 @@ class SendNotifier extends _$SendNotifier {
     state = state.copyWith(errorMessage: null);
   }
 
+  void selectAsset(String asset) {
+    state = state.copyWith(selectedAsset: asset);
+  }
+
   bool get canProceed {
     switch (state.currentStep) {
+      case SendStep.assetSelection:
+        return state.selectedAsset.isNotEmpty;
       case SendStep.addressInput:
         return state.recipientAddress.isNotEmpty;
       case SendStep.amountInput:
@@ -192,6 +230,8 @@ class SendNotifier extends _$SendNotifier {
 
   bool canProceedForStep(SendStep step) {
     switch (step) {
+      case SendStep.assetSelection:
+        return state.selectedAsset.isNotEmpty;
       case SendStep.addressInput:
         return state.recipientAddress.isNotEmpty;
       case SendStep.amountInput:
