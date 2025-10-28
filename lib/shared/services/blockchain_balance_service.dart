@@ -5,7 +5,6 @@ import '../../core/configs/api_keys.dart';
 class BlockchainBalanceService {
   // Solana RPC endpoints
   static const String _solanaMainnetRpc = 'https://api.mainnet-beta.solana.com';
-  static const String _solanaTestnetRpc = 'https://api.testnet.solana.com';
 
   // Ethereum RPC endpoints (using API keys from config)
   static String get _ethereumMainnetRpc =>
@@ -37,10 +36,10 @@ class BlockchainBalanceService {
         }
       }
 
-      print('❌ Error fetching SOL balance: ${response.statusCode}');
+      print('Error fetching SOL balance: ${response.statusCode}');
       return 0.0;
     } catch (e) {
-      print('❌ Error fetching SOL balance: $e');
+      print('Error fetching SOL balance: $e');
       return 0.0;
     }
   }
@@ -57,7 +56,7 @@ class BlockchainBalanceService {
     for (int i = 0; i < rpcEndpoints.length; i++) {
       try {
         print(
-            '🔍 Fetching ETH balance for: $walletAddress (RPC ${i + 1}/${rpcEndpoints.length})');
+            'Fetching ETH balance for: $walletAddress (RPC ${i + 1}/${rpcEndpoints.length})');
 
         final response = await http.post(
           Uri.parse(rpcEndpoints[i]),
@@ -70,17 +69,17 @@ class BlockchainBalanceService {
           }),
         );
 
-        print('📡 ETH balance response: ${response.statusCode}');
+        print('ETH balance response: ${response.statusCode}');
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          print('📊 ETH balance data: $data');
+          print('ETH balance data: $data');
 
           // Check for RPC errors
           if (data['error'] != null) {
-            print('⚠️ RPC error from ${rpcEndpoints[i]}: ${data['error']}');
+            print('RPC error from ${rpcEndpoints[i]}: ${data['error']}');
             if (i < rpcEndpoints.length - 1) {
-              print('🔄 Trying next RPC endpoint...');
+              print('Trying next RPC endpoint...');
               continue;
             }
             return 0.0;
@@ -92,21 +91,21 @@ class BlockchainBalanceService {
             final wei = int.parse(weiHex.substring(2), radix: 16);
             final ethBalance = wei / 1000000000000000000.0; // Convert to ETH
 
-            print('💰 ETH balance: $ethBalance ETH');
+            print('ETH balance: $ethBalance ETH');
             return ethBalance;
           }
         }
 
         print(
-            '❌ Error fetching ETH balance: ${response.statusCode} - ${response.body}');
+            'Error fetching ETH balance: ${response.statusCode} - ${response.body}');
         if (i < rpcEndpoints.length - 1) {
-          print('🔄 Trying next RPC endpoint...');
+          print('Trying next RPC endpoint...');
           continue;
         }
       } catch (e) {
-        print('❌ Error fetching ETH balance from ${rpcEndpoints[i]}: $e');
+        print('Error fetching ETH balance from ${rpcEndpoints[i]}: $e');
         if (i < rpcEndpoints.length - 1) {
-          print('🔄 Trying next RPC endpoint...');
+          print('Trying next RPC endpoint...');
           continue;
         }
       }
@@ -117,125 +116,205 @@ class BlockchainBalanceService {
 
   /// Get real USDC balance for an Ethereum wallet address
   static Future<double> getUsdcBalance(String walletAddress) async {
-    try {
-      // USDC contract address on Ethereum mainnet (Circle's official USDC)
-      const usdcContractAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    // Try multiple RPC endpoints
+    final rpcEndpoints = [
+      _ethereumMainnetRpc, // Ankr (primary)
+      _ethereumBackupRpc, // LlamaRPC (backup)
+      _ethereumAlchemyRpc, // Alchemy (backup)
+    ];
 
-      final response = await http.post(
-        Uri.parse(_ethereumMainnetRpc),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 1,
-          'method': 'eth_call',
-          'params': [
-            {
-              'to': usdcContractAddress,
-              'data':
-                  '0x70a08231000000000000000000000000${walletAddress.substring(2)}'
-            },
-            'latest'
-          ]
-        }),
-      );
+    // USDC contract address on Ethereum mainnet (Circle's official USDC)
+    const usdcContractAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['result'] != null && data['result'] != '0x') {
-          // USDC has 6 decimals
-          final balanceHex = data['result'] as String;
+    for (int i = 0; i < rpcEndpoints.length; i++) {
+      try {
+        print(
+            'Fetching USDC balance for: $walletAddress (RPC ${i + 1}/${rpcEndpoints.length})');
 
-          // Remove '0x' prefix and validate hex string
-          String cleanHex = balanceHex.startsWith('0x')
-              ? balanceHex.substring(2)
-              : balanceHex;
+        final response = await http.post(
+          Uri.parse(rpcEndpoints[i]),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'eth_call',
+            'params': [
+              {
+                'to': usdcContractAddress,
+                'data':
+                    '0x70a08231000000000000000000000000${walletAddress.substring(2)}'
+              },
+              'latest'
+            ]
+          }),
+        );
 
-          // If empty or invalid, return 0
-          if (cleanHex.isEmpty) {
+        print('📡 USDC balance response: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+
+          // Check for RPC errors
+          if (data['error'] != null) {
+            print('⚠️ RPC error from ${rpcEndpoints[i]}: ${data['error']}');
+            if (i < rpcEndpoints.length - 1) {
+              print('🔄 Trying next RPC endpoint...');
+              continue;
+            }
             return 0.0;
           }
 
-          try {
-            final balance = int.parse(cleanHex, radix: 16);
-            return balance / 1000000.0; // Convert to USDC
-          } catch (e) {
-            print('❌ Error parsing USDC hex: $cleanHex - $e');
-            return 0.0;
+          if (data['result'] != null && data['result'] != '0x') {
+            // USDC has 6 decimals
+            final balanceHex = data['result'] as String;
+
+            // Remove '0x' prefix and validate hex string
+            String cleanHex = balanceHex.startsWith('0x')
+                ? balanceHex.substring(2)
+                : balanceHex;
+
+            // If empty or invalid, return 0
+            if (cleanHex.isEmpty) {
+              return 0.0;
+            }
+
+            try {
+              final balance = int.parse(cleanHex, radix: 16);
+              final usdcBalance = balance / 1000000.0; // Convert to USDC
+              print('USDC balance: $usdcBalance USDC');
+              return usdcBalance;
+            } catch (e) {
+              print('Error parsing USDC hex: $cleanHex - $e');
+              if (i < rpcEndpoints.length - 1) {
+                print('Trying next RPC endpoint...');
+                continue;
+              }
+              return 0.0;
+            }
           }
         }
-      }
 
-      print('❌ Error fetching USDC balance: ${response.statusCode}');
-      return 0.0;
-    } catch (e) {
-      print('❌ Error fetching USDC balance: $e');
-      return 0.0;
+        print(
+            'Error fetching USDC balance: ${response.statusCode} - ${response.body}');
+        if (i < rpcEndpoints.length - 1) {
+          print('🔄 Trying next RPC endpoint...');
+          continue;
+        }
+      } catch (e) {
+        print('Error fetching USDC balance from ${rpcEndpoints[i]}: $e');
+        if (i < rpcEndpoints.length - 1) {
+          print('Trying next RPC endpoint...');
+          continue;
+        }
+      }
     }
+
+    return 0.0;
   }
 
   /// Get real USDT balance for an Ethereum wallet address
   static Future<double> getUsdtBalance(String walletAddress) async {
-    try {
-      // USDT contract address on Ethereum mainnet
-      const usdtContractAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+    // Try multiple RPC endpoints
+    final rpcEndpoints = [
+      _ethereumMainnetRpc, // Ankr (primary)
+      _ethereumBackupRpc, // LlamaRPC (backup)
+      _ethereumAlchemyRpc, // Alchemy (backup)
+    ];
 
-      final response = await http.post(
-        Uri.parse(_ethereumMainnetRpc),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 1,
-          'method': 'eth_call',
-          'params': [
-            {
-              'to': usdtContractAddress,
-              'data':
-                  '0x70a08231000000000000000000000000${walletAddress.substring(2)}'
-            },
-            'latest'
-          ]
-        }),
-      );
+    // USDT contract address on Ethereum mainnet
+    const usdtContractAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['result'] != null && data['result'] != '0x') {
-          // USDT has 6 decimals
-          final balanceHex = data['result'] as String;
+    for (int i = 0; i < rpcEndpoints.length; i++) {
+      try {
+        print(
+            'Fetching USDT balance for: $walletAddress (RPC ${i + 1}/${rpcEndpoints.length})');
 
-          // Remove '0x' prefix and validate hex string
-          String cleanHex = balanceHex.startsWith('0x')
-              ? balanceHex.substring(2)
-              : balanceHex;
+        final response = await http.post(
+          Uri.parse(rpcEndpoints[i]),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'eth_call',
+            'params': [
+              {
+                'to': usdtContractAddress,
+                'data':
+                    '0x70a08231000000000000000000000000${walletAddress.substring(2)}'
+              },
+              'latest'
+            ]
+          }),
+        );
 
-          // If empty or invalid, return 0
-          if (cleanHex.isEmpty) {
+        print('📡 USDT balance response: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+
+          // Check for RPC errors
+          if (data['error'] != null) {
+            print('RPC error from ${rpcEndpoints[i]}: ${data['error']}');
+            if (i < rpcEndpoints.length - 1) {
+              print('Trying next RPC endpoint...');
+              continue;
+            }
             return 0.0;
           }
 
-          try {
-            final balance = int.parse(cleanHex, radix: 16);
-            return balance / 1000000.0; // Convert to USDT
-          } catch (e) {
-            print('❌ Error parsing USDT hex: $cleanHex - $e');
-            return 0.0;
+          if (data['result'] != null && data['result'] != '0x') {
+            // USDT has 6 decimals
+            final balanceHex = data['result'] as String;
+
+            // Remove '0x' prefix and validate hex string
+            String cleanHex = balanceHex.startsWith('0x')
+                ? balanceHex.substring(2)
+                : balanceHex;
+
+            // If empty or invalid, return 0
+            if (cleanHex.isEmpty) {
+              return 0.0;
+            }
+
+            try {
+              final balance = int.parse(cleanHex, radix: 16);
+              final usdtBalance = balance / 1000000.0; // Convert to USDT
+              print('USDT balance: $usdtBalance USDT');
+              return usdtBalance;
+            } catch (e) {
+              print('Error parsing USDT hex: $cleanHex - $e');
+              if (i < rpcEndpoints.length - 1) {
+                print('🔄 Trying next RPC endpoint...');
+                continue;
+              }
+              return 0.0;
+            }
           }
         }
-      }
 
-      print('❌ Error fetching USDT balance: ${response.statusCode}');
-      return 0.0;
-    } catch (e) {
-      print('❌ Error fetching USDT balance: $e');
-      return 0.0;
+        print(
+            'Error fetching USDT balance: ${response.statusCode} - ${response.body}');
+        if (i < rpcEndpoints.length - 1) {
+          print('Trying next RPC endpoint...');
+          continue;
+        }
+      } catch (e) {
+        print('Error fetching USDT balance from ${rpcEndpoints[i]}: $e');
+        if (i < rpcEndpoints.length - 1) {
+          print('Trying next RPC endpoint...');
+          continue;
+        }
+      }
     }
+
+    return 0.0;
   }
 
   /// Get all token balances for a wallet address
   static Future<Map<String, double>> getAllBalances(
       String walletAddress) async {
     try {
-      print('🔍 Fetching real balances for wallet: $walletAddress');
+      print('Fetching real balances for wallet: $walletAddress');
 
       final balances = <String, double>{};
 
@@ -267,7 +346,7 @@ class BlockchainBalanceService {
         balances['USDC'] = 0.0; // No USDC on Solana
         balances['USDT'] = 0.0; // No USDT on Solana
       } else {
-        print('❌ Unknown address format: $walletAddress');
+        print('Unknown address format: $walletAddress');
         return {
           'SOL': 0.0,
           'ETH': 0.0,
@@ -279,7 +358,7 @@ class BlockchainBalanceService {
       print('💰 Real balances fetched: $balances');
       return balances;
     } catch (e) {
-      print('❌ Error fetching all balances: $e');
+      print('Error fetching all balances: $e');
       return {
         'SOL': 0.0,
         'ETH': 0.0,
@@ -330,7 +409,7 @@ class BlockchainBalanceService {
         },
       ];
     } catch (e) {
-      print('❌ Error fetching transaction history: $e');
+      print('Error fetching transaction history: $e');
       return [];
     }
   }

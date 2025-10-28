@@ -36,13 +36,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         final walletStateNotifier = ref.read(walletStateProvider.notifier);
 
         try {
-          // Attempt to connect to existing wallet
-          await walletStateNotifier.connectWallet();
+          // Attempt to load existing wallet (does NOT create a new one)
+          await walletStateNotifier.loadExistingWallet();
 
           // The listener will handle navigation when the state updates
-          print('🔍 Attempted to connect wallet, waiting for state update...');
+          print(
+              'Attempted to load existing wallet, waiting for state update...');
         } catch (e) {
-          print('⚠️ Error loading wallet on startup: $e');
+          print('Warning: Error loading wallet on startup: $e');
           if (mounted && !_hasNavigated) {
             _hasNavigated = true;
             Navigator.pushReplacement(
@@ -63,19 +64,30 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     ref.listen<AsyncValue<Wallet?>>(walletStateProvider, (previous, next) {
       if (_hasNavigated) return;
 
+      // If we have a wallet, navigate to main app
       if (next.hasValue && next.value != null) {
         _hasNavigated = true;
-        print('✅ Wallet connected via listener, navigating to main app');
+        print('Wallet loaded via listener, navigating to main app');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => const MainNavigationScreen(),
           ),
         );
+      }
+      // If wallet state is null (no wallet exists) or error, go to wallet connection screen
+      else if (next.hasValue && next.value == null) {
+        _hasNavigated = true;
+        print('No wallet found, navigating to wallet creation screen');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WalletConnectionScreen(),
+          ),
+        );
       } else if (next.hasError) {
         _hasNavigated = true;
-        print(
-            '❌ Wallet connection failed via listener, navigating to wallet creation');
+        print('Wallet loading failed, navigating to wallet creation screen');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

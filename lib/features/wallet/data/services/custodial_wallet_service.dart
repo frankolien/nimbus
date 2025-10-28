@@ -40,11 +40,11 @@ class CustodialWalletService {
         throw CustodialWalletException('Generated invalid private key format');
       }
 
-      print('🔐 Generated wallet for user: $userId');
-      print('🔐 Address: ${address.hex}');
-      print('🔐 Private key length: ${privateKeyHex.length}');
-      print('🔐 Private key preview: ${privateKeyHex.substring(0, 10)}...');
-      print('🔐 Private key format validation: ✅');
+      print('Generated wallet for user: $userId');
+      print('Address: ${address.hex}');
+      print('Private key length: ${privateKeyHex.length}');
+      print('Private key preview: ${privateKeyHex.substring(0, 10)}...');
+      print('Private key format validation: ✅');
 
       await _storeWalletData(userId, {
         _privateKeyKey: privateKeyHex,
@@ -79,7 +79,7 @@ class CustodialWalletService {
       print('🔍 Address: $addressStr');
 
       if (privateKeyStr == null || addressStr == null) {
-        print('❌ No wallet found for user: $userId');
+        print('No wallet found for user: $userId');
         return null;
       }
 
@@ -89,7 +89,7 @@ class CustodialWalletService {
       // Check if it's already corrupted (contains brackets from Uint8List.toString())
       if (cleanPrivateKeyStr.contains('[') ||
           cleanPrivateKeyStr.contains(']')) {
-        print('❌ Corrupted private key format detected, clearing data');
+        print('Corrupted private key format detected, clearing data');
         throw FormatException('Corrupted private key format');
       }
 
@@ -101,13 +101,12 @@ class CustodialWalletService {
       if (cleanPrivateKeyStr.length != 66 ||
           !RegExp(r'^0x[0-9a-fA-F]{64}$').hasMatch(cleanPrivateKeyStr)) {
         print(
-            '❌ Invalid private key format: length=${cleanPrivateKeyStr.length}');
+            'Invalid private key format: length=${cleanPrivateKeyStr.length}');
         throw FormatException('Invalid private key format');
       }
 
-      print('🔍 Clean private key: ${cleanPrivateKeyStr.substring(0, 10)}...');
-      print(
-          '🔍 Private key length after cleaning: ${cleanPrivateKeyStr.length}');
+      print('Clean private key: ${cleanPrivateKeyStr.substring(0, 10)}...');
+      print('Private key length after cleaning: ${cleanPrivateKeyStr.length}');
 
       final privateKey = EthPrivateKey.fromHex(cleanPrivateKeyStr);
 
@@ -131,7 +130,7 @@ class CustodialWalletService {
         return existingWallet;
       }
     } catch (e) {
-      print('⚠️ Error loading existing wallet, clearing corrupted data: $e');
+      print('Error loading existing wallet, clearing corrupted data: $e');
       await deleteWallet(userId);
     }
     return await generateWallet(userId);

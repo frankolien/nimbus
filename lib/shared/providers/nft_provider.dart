@@ -9,9 +9,9 @@ part 'nft_provider.g.dart';
 class NFTNotifier extends _$NFTNotifier {
   @override
   Future<List<NFT>> build() async {
-    print('🔄 NFTNotifier: Building NFT list...');
+    print('NFTNotifier: Building NFT list...');
     final nfts = await NFTService.getTrendingNFTs();
-    print('🔄 NFTNotifier: Got ${nfts.length} NFTs');
+    print('NFTNotifier: Got ${nfts.length} NFTs');
     return nfts;
   }
 

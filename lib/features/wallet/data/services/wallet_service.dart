@@ -107,7 +107,7 @@ class WalletService {
     try {
       _connectedAddress = null;
       _connectionType = WalletConnectionType.none;
-      print('🔌 Wallet disconnected');
+      print('Wallet disconnected');
     } catch (e) {
       throw WalletException('Failed to disconnect wallet: $e');
     }
@@ -127,7 +127,7 @@ class WalletService {
         throw WalletException('Invalid wallet address: ${validation.message}');
       }
 
-      print('🔍 Fetching real token balances for wallet: $walletAddress');
+      print('Fetching real token balances for wallet: $walletAddress');
 
       // Get real blockchain balances
       final realBalances =
@@ -147,10 +147,10 @@ class WalletService {
         ));
       });
 
-      print('💰 Real token balances fetched: ${tokenBalances.length} tokens');
+      print('Real token balances fetched: ${tokenBalances.length} tokens');
       return tokenBalances;
     } catch (e) {
-      print('❌ Error fetching real balances: $e');
+      print('Error fetching real balances: $e');
       throw WalletException('Failed to fetch token balances: $e');
     }
   }

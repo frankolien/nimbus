@@ -78,10 +78,10 @@ class NFTService {
         }
       }
 
-      print('✅ Found ${searchResults.length} NFTs for "$query"');
+      print('Found ${searchResults.length} NFTs for "$query"');
       return searchResults.take(limit).toList();
     } catch (e) {
-      print('❌ Error searching NFTs: $e');
+      print('Error searching NFTs: $e');
       return _getMockNFTs()
           .where((nft) =>
               nft.name.toLowerCase().contains(query.toLowerCase()) ||
@@ -95,7 +95,7 @@ class NFTService {
   static Future<Map<String, dynamic>> getNFTPurchaseInfo(
       String contractAddress, String tokenId) async {
     try {
-      print('💰 Getting purchase info for NFT: $contractAddress #$tokenId');
+      print('Getting purchase info for NFT: $contractAddress #$tokenId');
 
       // Generate realistic pricing based on contract address and token ID
       // This simulates different collections having different floor prices
@@ -117,7 +117,7 @@ class NFTService {
           floorPrice * (0.8 + (tokenHash.abs() % 20) / 100.0); // 0.8x to 1.0x
 
       print(
-          '💰 Generated pricing - Floor: ${floorPrice.toStringAsFixed(3)} ETH, Buy: ${buyNowPrice.toStringAsFixed(3)} ETH');
+          'Generated pricing - Floor: ${floorPrice.toStringAsFixed(3)} ETH, Buy: ${buyNowPrice.toStringAsFixed(3)} ETH');
 
       return {
         'floorPrice': floorPrice,
@@ -133,7 +133,7 @@ class NFTService {
         'platformFee': 0.025, // 2.5%
       };
     } catch (e) {
-      print('❌ Error getting NFT purchase info: $e');
+      print('Error getting NFT purchase info: $e');
       return {
         'floorPrice': 0.5,
         'lastSalePrice': 0.4,

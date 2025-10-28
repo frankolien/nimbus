@@ -296,7 +296,7 @@ class DAppService {
         }
       }
     } catch (e) {
-      print('❌ Error fetching real-time TVL data: $e');
+      print('Error fetching real-time TVL data: $e');
       // Keep existing data if API fails
     }
   }

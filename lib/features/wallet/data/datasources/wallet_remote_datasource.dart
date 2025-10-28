@@ -46,7 +46,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       );
 
       await _appKitModal!.init();
-      print('✅ Reown AppKit initialized');
+      print('Reown AppKit initialized');
     }
   }
 
@@ -56,7 +56,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       if (_appKitModal != null && _context != null) {
         // Open the wallet connection modal
         _appKitModal!.openModalView();
-        print('✅ Wallet connection modal opened');
+        print('Wallet connection modal opened');
 
         // Wait for user to connect their wallet
         // This should be handled by proper event listeners
@@ -65,7 +65,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
 
       throw Exception('Wallet connection modal not available');
     } catch (e) {
-      print('❌ Wallet connection error: $e');
+      print('Wallet connection error: $e');
       rethrow;
     }
   }
@@ -75,9 +75,9 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
     if (_appKitModal != null) {
       try {
         _appKitModal!.disconnect();
-        print('✅ Wallet disconnected successfully');
+        print('Wallet disconnected successfully');
       } catch (e) {
-        print('❌ Error disconnecting wallet: $e');
+        print('Error disconnecting wallet: $e');
       }
     }
     _connectedAddress = null;
@@ -138,7 +138,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       throw Exception(
           'Transaction signing requires proper AppKit implementation');
     } catch (e) {
-      print('❌ Transaction signing error: $e');
+      print('Transaction signing error: $e');
       rethrow;
     }
   }

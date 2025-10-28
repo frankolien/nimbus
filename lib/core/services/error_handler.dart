@@ -36,7 +36,7 @@ class ErrorHandler {
         additionalData != null ? 'Additional: $additionalData' : '';
 
     if (kDebugMode) {
-      print('❌ $_logTag: $errorMessage');
+      print('$_logTag: $errorMessage');
       if (contextInfo.isNotEmpty) print('📍 $_logTag: $contextInfo');
       if (additionalInfo.isNotEmpty) print('📊 $_logTag: $additionalInfo');
       if (stackTrace != null) print('📚 $_logTag: $stackTrace');

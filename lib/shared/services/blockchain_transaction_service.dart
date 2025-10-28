@@ -20,7 +20,7 @@ class BlockchainTransactionService {
   }) async {
     try {
       print(
-          '🚀 Sending ETH transaction: $amountInEth ETH from $fromAddress to $toAddress');
+          'Sending ETH transaction: $amountInEth ETH from $fromAddress to $toAddress');
 
       // Convert ETH to Wei
       final amountInWei =
@@ -42,15 +42,15 @@ class BlockchainTransactionService {
         'data': '0x',
       };
 
-      print('📝 Transaction: $transaction');
+      print('Transaction: $transaction');
 
       // Sign transaction
       final signedTx = await _signTransaction(transaction, privateKey);
-      print('✍️ Signed transaction: $signedTx');
+      print('Signed transaction: $signedTx');
 
       // Send transaction
       final txHash = await _sendRawTransaction(signedTx);
-      print('✅ Transaction sent! Hash: $txHash');
+      print('Transaction sent! Hash: $txHash');
 
       return {
         'success': true,
@@ -62,7 +62,7 @@ class BlockchainTransactionService {
         'gasPrice': gasPrice,
       };
     } catch (e) {
-      print('❌ Error sending ETH transaction: $e');
+      print('Error sending ETH transaction: $e');
       return {
         'success': false,
         'error': e.toString(),
@@ -82,7 +82,7 @@ class BlockchainTransactionService {
   }) async {
     try {
       print(
-          '🚀 Sending token transaction: $amount tokens from $fromAddress to $toAddress');
+          'Sending token transaction: $amount tokens from $fromAddress to $toAddress');
 
       // Convert amount to token decimals (6 for USDC/USDT)
       final tokenAmount = (double.parse(amount) * 1000000).toInt();
@@ -107,13 +107,13 @@ class BlockchainTransactionService {
         'data': transferData,
       };
 
-      print('📝 Token transaction: $transaction');
+      print('Token transaction: $transaction');
 
       // Sign and send transaction
       final signedTx = await _signTransaction(transaction, privateKey);
       final txHash = await _sendRawTransaction(signedTx);
 
-      print('✅ Token transaction sent! Hash: $txHash');
+      print('Token transaction sent! Hash: $txHash');
 
       return {
         'success': true,
@@ -126,7 +126,7 @@ class BlockchainTransactionService {
         'gasPrice': gasPrice,
       };
     } catch (e) {
-      print('❌ Error sending token transaction: $e');
+      print('Error sending token transaction: $e');
       return {
         'success': false,
         'error': e.toString(),
@@ -169,7 +169,7 @@ class BlockchainTransactionService {
         'error': 'Transaction not found or still pending',
       };
     } catch (e) {
-      print('❌ Error getting transaction status: $e');
+      print('Error getting transaction status: $e');
       return {
         'success': false,
         'status': 'error',
@@ -199,7 +199,7 @@ class BlockchainTransactionService {
 
       return '0x5208'; // 20 Gwei default
     } catch (e) {
-      print('❌ Error getting gas price: $e');
+      print('Error getting gas price: $e');
       return '0x5208'; // 20 Gwei default
     }
   }
@@ -226,7 +226,7 @@ class BlockchainTransactionService {
 
       return 0;
     } catch (e) {
-      print('❌ Error getting nonce: $e');
+      print('Error getting nonce: $e');
       return 0;
     }
   }
@@ -250,7 +250,7 @@ class BlockchainTransactionService {
       // In production, use proper ECDSA signing
       return '0x$txHash$cleanPrivateKey';
     } catch (e) {
-      print('❌ Error signing transaction: $e');
+      print('Error signing transaction: $e');
       rethrow;
     }
   }
@@ -278,7 +278,7 @@ class BlockchainTransactionService {
 
       throw Exception('Failed to send transaction');
     } catch (e) {
-      print('❌ Error sending raw transaction: $e');
+      print('Error sending raw transaction: $e');
       rethrow;
     }
   }
@@ -304,7 +304,7 @@ class BlockchainTransactionService {
 
       return '0x5208'; // 21000 gas default
     } catch (e) {
-      print('❌ Error estimating gas: $e');
+      print('Error estimating gas: $e');
       return '0x5208'; // 21000 gas default
     }
   }

@@ -21,6 +21,54 @@ class WalletState extends _$WalletState {
     return 'user_default';
   }
 
+  /// Check if a wallet exists (without creating one)
+  Future<bool> checkIfWalletExists() async {
+    try {
+      final custodialService = ref.read(custodialWalletServiceProvider);
+      final userId = await _getUserId();
+      final existingWallet = await custodialService.loadWallet(userId);
+      return existingWallet != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Load existing wallet without creating a new one
+  Future<void> loadExistingWallet() async {
+    state = const AsyncValue.loading();
+
+    try {
+      final custodialService = ref.read(custodialWalletServiceProvider);
+      final userId = await _getUserId();
+
+      // Try to load existing wallet
+      final custodialWallet = await custodialService.loadWallet(userId);
+
+      if (custodialWallet == null) {
+        // No wallet exists
+        state = const AsyncValue.data(null);
+        print('📭 No existing wallet found');
+        return;
+      }
+
+      // Get wallet balance
+      final balance = await custodialService.getWalletBalance(userId);
+
+      // Create wallet entity
+      final wallet = Wallet(
+        address: custodialWallet.address,
+        balance: balance,
+        isConnected: true,
+      );
+
+      state = AsyncValue.data(wallet);
+      print('✅ Existing wallet loaded: ${wallet.address}');
+    } catch (error, stackTrace) {
+      print('❌ Failed to load existing wallet: $error');
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
   Future<void> connectWallet() async {
     state = const AsyncValue.loading();
 

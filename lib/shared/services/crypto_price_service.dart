@@ -29,6 +29,15 @@ class CryptoPrice {
 class CryptoPriceService {
   final http.Client _client;
 
+  // Cache for price data to reduce API calls
+  Map<String, dynamic>? _cachedPriceData;
+  DateTime? _lastFetchTime;
+  static const Duration _cacheDuration =
+      Duration(minutes: 5); // Cache for 5 minutes
+
+  // Track rate limiting
+  DateTime? _rateLimitUntil;
+
   CryptoPriceService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<List<CryptoPrice>> getCryptoPrices(String? walletAddress) async {
@@ -37,6 +46,30 @@ class CryptoPriceService {
 
       // Get real wallet balances
       final walletBalances = await _getWalletBalances(walletAddress);
+
+      // Check cache first
+      if (_cachedPriceData != null && _lastFetchTime != null) {
+        final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
+        if (timeSinceLastFetch < _cacheDuration) {
+          print('Using cached price data');
+          return _parseCoinGeckoData(_cachedPriceData!, walletBalances);
+        }
+      }
+
+      // Check if we're rate-limited
+      if (_rateLimitUntil != null) {
+        if (DateTime.now().isBefore(_rateLimitUntil!)) {
+          final waitTime = _rateLimitUntil!.difference(DateTime.now());
+          print('Rate limited, waiting ${waitTime.inSeconds} seconds...');
+          if (_cachedPriceData != null) {
+            // Use cached data while rate-limited
+            return _parseCoinGeckoData(_cachedPriceData!, walletBalances);
+          }
+          throw Exception('Rate limited and no cached data available');
+        } else {
+          _rateLimitUntil = null;
+        }
+      }
 
       // Try to fetch from CoinGecko API first
       try {
@@ -47,54 +80,86 @@ class CryptoPriceService {
 
         final url =
             'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true$apiKey';
-        print('🔍 Fetching from CoinGecko: $url');
+        print('Fetching from CoinGecko: $url');
 
         final response = await _client.get(Uri.parse(url));
 
-        print('📡 CoinGecko response status: ${response.statusCode}');
+        print('CoinGecko response status: ${response.statusCode}');
         print(
-            '📡 CoinGecko response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
+            'CoinGecko response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          print('✅ CoinGecko data received successfully');
+          _cachedPriceData = data;
+          _lastFetchTime = DateTime.now();
+          print('CoinGecko data received successfully');
           return _parseCoinGeckoData(data, walletBalances);
+        } else if (response.statusCode == 429) {
+          // Rate limited
+          _handleRateLimit();
+          if (_cachedPriceData != null) {
+            print('Using cached data due to rate limit');
+            return _parseCoinGeckoData(_cachedPriceData!, walletBalances);
+          }
+          throw Exception('Rate limited and no cached data available');
         } else {
           print(
-              '❌ CoinGecko API error: ${response.statusCode} - ${response.body}');
+              'CoinGecko API error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        print('❌ CoinGecko API failed: $e');
+        print('CoinGecko API failed: $e');
       }
 
       // Try free CoinGecko API without API key as fallback
       try {
         final freeUrl =
             'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,toncoin&vs_currencies=usd&include_24hr_change=true';
-        print('🔄 Trying free CoinGecko API: $freeUrl');
+        print('Trying free CoinGecko API: $freeUrl');
 
         final response = await _client.get(Uri.parse(freeUrl));
 
-        print('📡 Free CoinGecko response status: ${response.statusCode}');
+        print('Free CoinGecko response status: ${response.statusCode}');
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          print('✅ Free CoinGecko data received successfully');
+          _cachedPriceData = data;
+          _lastFetchTime = DateTime.now();
+          print('Free CoinGecko data received successfully');
           return _parseCoinGeckoData(data, walletBalances);
+        } else if (response.statusCode == 429) {
+          // Rate limited
+          _handleRateLimit();
+          if (_cachedPriceData != null) {
+            print('Using cached data due to rate limit');
+            return _parseCoinGeckoData(_cachedPriceData!, walletBalances);
+          }
+          throw Exception('Rate limited and no cached data available');
         } else {
           print(
-              '❌ Free CoinGecko API error: ${response.statusCode} - ${response.body}');
+              'Free CoinGecko API error: ${response.statusCode} - ${response.body}');
         }
       } catch (e) {
-        print('❌ Free CoinGecko API failed: $e');
+        print('Free CoinGecko API failed: $e');
       }
 
-      // If all APIs fail, throw an error instead of using mock data
+      // If all APIs fail, check if we have cached data
+      if (_cachedPriceData != null) {
+        print('Using stale cached data after API failures');
+        return _parseCoinGeckoData(_cachedPriceData!, walletBalances);
+      }
+
+      // If all APIs fail, throw an error
       throw Exception('Failed to fetch crypto prices from all sources');
     } catch (e) {
       print('Error fetching crypto prices: $e');
       throw Exception('Failed to fetch crypto prices: $e');
     }
+  }
+
+  void _handleRateLimit() {
+    print('Rate limit detected, backing off');
+    _rateLimitUntil =
+        DateTime.now().add(Duration(minutes: 10)); // Wait 10 minutes
   }
 
   List<CryptoPrice> _parseCoinGeckoData(
@@ -204,24 +269,42 @@ final cryptoPricesProvider = FutureProvider<List<CryptoPrice>>((ref) async {
   return service.getCryptoPrices(walletAddress);
 });
 
-// Auto-refresh provider that triggers updates every 30 seconds
+// Auto-refresh provider that triggers updates every 5 minutes
 final cryptoPricesRefreshProvider =
     StreamProvider<List<CryptoPrice>>((ref) async* {
   final service = ref.watch(cryptoPriceServiceProvider);
   final walletAddress = ref.watch(currentWalletAddressProvider);
 
+  int consecutiveErrors = 0;
+  Duration delay = const Duration(minutes: 5); // Start with 5 minutes
+
   while (true) {
     try {
       final prices = await service.getCryptoPrices(walletAddress);
+      consecutiveErrors = 0; // Reset error count on success
+      delay = const Duration(minutes: 5); // Reset delay to 5 minutes
       yield prices;
     } catch (e) {
       print('Error in crypto prices refresh: $e');
+      consecutiveErrors++;
+
+      // Exponential backoff: increase delay after consecutive errors
+      if (consecutiveErrors > 0) {
+        delay = Duration(
+            minutes: 5 *
+                (consecutiveErrors < 4
+                    ? consecutiveErrors
+                    : 4)); // Cap at 20 minutes
+        print(
+            'Backing off for ${delay.inMinutes} minutes after $consecutiveErrors errors');
+      }
+
       // Yield empty list on error to keep stream alive
       yield <CryptoPrice>[];
     }
 
-    // Wait 30 seconds before next update
-    await Future.delayed(const Duration(seconds: 30));
+    // Wait before next update
+    await Future.delayed(delay);
   }
 });
 
