@@ -50,6 +50,7 @@ dependencies:
   # Environment
   flutter_dotenv: ^5.1.0
   local_auth: ^2.1.6
+  blockchain_utils: ^5.4.0
 
 dev_dependencies:
   flutter_test:

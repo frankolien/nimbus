@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nimbus/app.dart';
+import 'package:nimbus/core/services/security_service.dart';
 import 'package:nimbus/features/send/presentation/providers/send_provider.dart';
 import 'package:nimbus/core/services/input_validation_service.dart';
 
