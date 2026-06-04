@@ -119,6 +119,32 @@ class WalletVault {
     return account;
   }
 
+  /// Rename the account at [index]. Persists the updated public metadata and
+  /// returns the renamed account.
+  Future<WalletAccount> renameAccount(int index, String label) async {
+    final accounts = await _vault.readAccounts();
+    final updated = [
+      for (final a in accounts)
+        if (a.index == index) a.copyWith(label: label) else a,
+    ];
+    await _vault.writeAccounts(updated);
+    return updated.firstWhere((a) => a.index == index);
+  }
+
+  /// Remove the account at [index]. A wallet must always keep at least one
+  /// account, so this throws [StateError] when only one remains. Returns the
+  /// remaining accounts. The account stays recoverable from the phrase — this
+  /// only forgets its public metadata on this device.
+  Future<List<WalletAccount>> removeAccount(int index) async {
+    final accounts = await _vault.readAccounts();
+    if (accounts.length <= 1) {
+      throw StateError('Cannot remove the only account');
+    }
+    final remaining = accounts.where((a) => a.index != index).toList();
+    await _vault.writeAccounts(remaining);
+    return remaining;
+  }
+
   /// A transient signing key for [family]/[accountIndex]. Requires an unlocked
   /// session. Use immediately; do not retain.
   DerivedSigningKey signingKey(ChainFamily family, int accountIndex) =>

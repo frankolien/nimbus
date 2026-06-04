@@ -141,10 +141,33 @@ void main() {
         'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk');
   });
 
+  test('renameAccount updates the stored label', () async {
+    await wallet.createWallet(mnemonic: mnemonic, passcode: passcode);
+    final renamed = await wallet.renameAccount(0, 'Main');
+    expect(renamed.label, 'Main');
+    final stored = await vault.readAccounts();
+    expect(stored.single.label, 'Main');
+  });
+
   test('deleteWallet wipes storage and locks', () async {
     await wallet.createWallet(mnemonic: mnemonic, passcode: passcode);
     await wallet.deleteWallet();
     expect(await wallet.hasWallet(), isFalse);
     expect(wallet.isUnlocked, isFalse);
+  });
+
+  test('removeAccount drops the chosen account and keeps the rest', () async {
+    await wallet.createWallet(mnemonic: mnemonic, passcode: passcode);
+    await wallet.addAccount(); // index 1
+    final remaining = await wallet.removeAccount(1);
+    expect(remaining, hasLength(1));
+    expect(remaining.single.index, 0);
+    expect(await vault.readAccounts(), hasLength(1));
+  });
+
+  test('removeAccount refuses to remove the only account', () async {
+    await wallet.createWallet(mnemonic: mnemonic, passcode: passcode);
+    expect(() => wallet.removeAccount(0), throwsStateError);
+    expect(await vault.readAccounts(), hasLength(1));
   });
 }

@@ -28,6 +28,8 @@ abstract final class NB {
   static const green = Color(0xFF2FD37E);
   static const greenDim = Color(0x242FD37E); // rgba(47,211,126,0.14)
   static const blue = Color(0xFF2F80ED);
+  static const violet = Color(0xFF9A6BFF);
+  static const pink = Color(0xFFFF5BA8);
   static const red = Color(0xFFFF5C5C);
 
   // Logo mark gradient

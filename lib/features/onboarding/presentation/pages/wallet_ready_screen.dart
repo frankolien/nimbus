@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nimbus/core/widgets/coin_logo.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../wallet/data/crypto/key_derivation_service.dart';
@@ -93,8 +94,7 @@ class WalletReadyScreen extends StatelessWidget {
           for (final family in KeyDerivationService.supportedFamilies)
             if (account.account(family) != null)
               _addressRow(
-                family.displayName,
-                Network.forFamily(family).first.nativeSymbol,
+                Network.forFamily(family).first,
                 _short(account.account(family)!.address),
               ),
         ],
@@ -102,25 +102,16 @@ class WalletReadyScreen extends StatelessWidget {
     );
   }
 
-  Widget _addressRow(String name, String symbol, String shortAddr) {
+  Widget _addressRow(Network network, String shortAddr) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: NB.surface2,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: Text(symbol.substring(0, symbol.length >= 3 ? 3 : symbol.length),
-                style: NB.font(10, weight: FontWeight.w700, color: NB.text2)),
-          ),
+          CoinLogo(network: network, size: 34),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(name, style: NB.font(14.5, weight: FontWeight.w700)),
+            child: Text(network.displayName,
+                style: NB.font(14.5, weight: FontWeight.w700)),
           ),
           Text(shortAddr, style: NB.font(13, color: NB.text2)),
         ],

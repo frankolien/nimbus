@@ -15,7 +15,12 @@ enum _Step { reveal, verify, pinSet, pinConfirm, ready }
 /// mnemonic lives only in this widget's memory until it's encrypted by the
 /// vault; it is never logged.
 class CreateWalletFlow extends ConsumerStatefulWidget {
-  const CreateWalletFlow({super.key, required this.onExit, required this.onDone});
+  const CreateWalletFlow({
+    super.key,
+    required this.onExit,
+    required this.onDone,
+    this.debugMnemonic,
+  });
 
   /// Called when the user backs out past the first step.
   final VoidCallback onExit;
@@ -23,13 +28,21 @@ class CreateWalletFlow extends ConsumerStatefulWidget {
   /// Called when the user taps "Open wallet" on the success screen.
   final VoidCallback onDone;
 
+  /// Test-only: use this phrase instead of generating one, so a widget test
+  /// can answer the verification quiz deterministically.
+  @visibleForTesting
+  final String? debugMnemonic;
+
   @override
   ConsumerState<CreateWalletFlow> createState() => _CreateWalletFlowState();
 }
 
 class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
   final _mnemonics = const MnemonicService();
-  final _padKey = GlobalKey<PasscodePadState>();
+  // Distinct keys: both pads are briefly mounted together during the
+  // AnimatedSwitcher transition, so a shared key would collide.
+  final _setPadKey = GlobalKey<PasscodePadState>();
+  final _confirmPadKey = GlobalKey<PasscodePadState>();
 
   late final List<String> _words;
   _Step _step = _Step.reveal;
@@ -40,7 +53,7 @@ class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
   @override
   void initState() {
     super.initState();
-    _words = _mnemonics.generate().split(' ');
+    _words = (widget.debugMnemonic ?? _mnemonics.generate()).split(' ');
   }
 
   void _go(_Step s) => setState(() => _step = s);
@@ -48,7 +61,7 @@ class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
   Future<void> _submitConfirmPin(String pin) async {
     if (pin != _firstPin) {
       setState(() => _pinError = "Codes didn't match — try again");
-      _padKey.currentState?.shakeAndClear();
+      _confirmPadKey.currentState?.shakeAndClear();
       return;
     }
     setState(() {
@@ -63,7 +76,7 @@ class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
     } catch (_) {
       if (mounted) {
         setState(() => _pinError = 'Something went wrong. Try again.');
-        _padKey.currentState?.shakeAndClear();
+        _confirmPadKey.currentState?.shakeAndClear();
         _firstPin = null;
         _go(_Step.pinSet);
       }
@@ -89,19 +102,18 @@ class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
         ),
       _Step.pinSet => PasscodeStep(
           key: const ValueKey('pinSet'),
-          padKey: _padKey,
+          padKey: _setPadKey,
           title: 'Create a passcode',
           subtitle: 'Enter a 6-digit code to unlock Nimbus.',
           onBack: () => _go(_Step.verify),
           onCompleted: (pin) {
             _firstPin = pin;
-            _padKey.currentState?.clear();
             _go(_Step.pinConfirm);
           },
         ),
       _Step.pinConfirm => PasscodeStep(
           key: const ValueKey('pinConfirm'),
-          padKey: _padKey,
+          padKey: _confirmPadKey,
           title: 'Confirm your passcode',
           subtitle: 'Re-enter your code to confirm.',
           errorText: _pinError,

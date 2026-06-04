@@ -44,6 +44,37 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
     }
   }
 
+  Future<void> _confirmReset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NB.surface,
+        title: Text('Reset wallet?',
+            style: NB.font(18, weight: FontWeight.w800)),
+        content: Text(
+          'This erases the wallet from this device. You can only restore it '
+          'with your recovery phrase. There is no other way back in.',
+          style: NB.font(14, color: NB.text2, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: NB.font(14, color: NB.text2)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Reset',
+                style: NB.font(14, weight: FontWeight.w700, color: NB.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(walletSessionProvider.notifier).deleteWallet();
+      // Gate rebuilds to onboarding (noWallet) automatically.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,6 +96,11 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
                 onCompleted: _submit,
               ),
               const Spacer(),
+              TextButton(
+                onPressed: _busy ? null : _confirmReset,
+                child: Text('Forgot passcode? Reset wallet',
+                    style: NB.font(13.5, weight: FontWeight.w700, color: NB.text2)),
+              ),
             ],
           ),
         ),

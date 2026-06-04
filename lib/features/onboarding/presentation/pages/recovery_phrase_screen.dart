@@ -1,9 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
+import '../../../wallet/presentation/widgets/recovery_phrase_grid.dart';
 import '../widgets/nimbus_widgets.dart';
 
 /// Shows the freshly generated 12-word recovery phrase. Blurred until the user
@@ -56,7 +55,12 @@ class _RecoveryPhraseScreenState extends State<RecoveryPhraseScreen> {
                 style: NB.font(14.5, color: NB.text2, height: 1.5),
               ),
               const SizedBox(height: 20),
-              Expanded(child: _phraseGrid()),
+              Expanded(
+                child: RecoveryPhraseGrid(
+                  words: widget.words,
+                  onRevealed: () => setState(() => _revealed = true),
+                ),
+              ),
               const SizedBox(height: 14),
               _warning(),
               const SizedBox(height: 16),
@@ -68,87 +72,6 @@ class _RecoveryPhraseScreenState extends State<RecoveryPhraseScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _phraseGrid() {
-    final grid = GridView.builder(
-      padding: const EdgeInsets.all(16),
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 3.4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: widget.words.length,
-      itemBuilder: (context, i) => _wordPill(i + 1, widget.words[i]),
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: NB.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NB.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          grid,
-          if (!_revealed)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => setState(() => _revealed = true),
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
-                      color: NB.surface.withValues(alpha: 0.4),
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.visibility_outlined,
-                              color: NB.text, size: 28),
-                          const SizedBox(height: 10),
-                          Text('Tap to reveal',
-                              style: NB.font(15, weight: FontWeight.w700)),
-                          const SizedBox(height: 4),
-                          Text('Make sure no one is watching',
-                              style: NB.font(12.5, color: NB.text2)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _wordPill(int n, String word) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: NB.surface2,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.centerLeft,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 22,
-            child: Text('$n', style: NB.font(13, color: NB.text3)),
-          ),
-          Expanded(
-            child: Text(word,
-                style: NB.font(14.5, weight: FontWeight.w600, color: NB.text)),
-          ),
-        ],
       ),
     );
   }

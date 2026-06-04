@@ -39,12 +39,14 @@ class WalletSessionState {
   final bool isBusy;
   final String? error;
 
-  WalletAccount? get activeAccount => accounts.firstWhere(
-        (a) => a.index == activeAccountIndex,
-        orElse: () => accounts.isNotEmpty
-            ? accounts.first
-            : throw StateError('no accounts'),
-      );
+  /// The active account, or null when no wallet exists yet.
+  WalletAccount? get activeAccount {
+    if (accounts.isEmpty) return null;
+    for (final a in accounts) {
+      if (a.index == activeAccountIndex) return a;
+    }
+    return accounts.first;
+  }
 
   bool get hasAccounts => accounts.isNotEmpty;
 
@@ -139,6 +141,33 @@ class WalletSessionNotifier extends StateNotifier<WalletSessionState> {
         return state.copyWith(
           accounts: [...state.accounts, account],
           activeAccountIndex: account.index,
+          status: VaultStatus.unlocked,
+        );
+      });
+
+  /// Rename an account and update both storage and in-memory state.
+  Future<void> renameAccount(int index, String label) async {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return;
+    await _vault.renameAccount(index, trimmed);
+    state = state.copyWith(
+      accounts: [
+        for (final a in state.accounts)
+          if (a.index == index) a.copyWith(label: trimmed) else a,
+      ],
+    );
+  }
+
+  /// Remove an account. If it was the active one, fall back to the first
+  /// remaining account so there's always a valid selection.
+  Future<void> removeAccount(int index) => _run(() async {
+        final accounts = await _vault.removeAccount(index);
+        final stillActive =
+            accounts.any((a) => a.index == state.activeAccountIndex);
+        return state.copyWith(
+          accounts: accounts,
+          activeAccountIndex:
+              stillActive ? state.activeAccountIndex : accounts.first.index,
           status: VaultStatus.unlocked,
         );
       });

@@ -25,7 +25,10 @@ class ImportWalletFlow extends ConsumerStatefulWidget {
 
 class _ImportWalletFlowState extends ConsumerState<ImportWalletFlow> {
   final _mnemonics = const MnemonicService();
-  final _padKey = GlobalKey<PasscodePadState>();
+  // Distinct keys: both pads are briefly mounted together during the
+  // AnimatedSwitcher transition, so a shared key would collide.
+  final _setPadKey = GlobalKey<PasscodePadState>();
+  final _confirmPadKey = GlobalKey<PasscodePadState>();
 
   _Step _step = _Step.enter;
   String _phrase = '';
@@ -38,7 +41,7 @@ class _ImportWalletFlowState extends ConsumerState<ImportWalletFlow> {
   Future<void> _submitConfirmPin(String pin) async {
     if (pin != _firstPin) {
       setState(() => _pinError = "Codes didn't match — try again");
-      _padKey.currentState?.shakeAndClear();
+      _confirmPadKey.currentState?.shakeAndClear();
       return;
     }
     setState(() {
@@ -53,7 +56,7 @@ class _ImportWalletFlowState extends ConsumerState<ImportWalletFlow> {
     } catch (_) {
       if (mounted) {
         setState(() => _pinError = 'Something went wrong. Try again.');
-        _padKey.currentState?.shakeAndClear();
+        _confirmPadKey.currentState?.shakeAndClear();
         _firstPin = null;
         _go(_Step.pinSet);
       }
@@ -76,19 +79,18 @@ class _ImportWalletFlowState extends ConsumerState<ImportWalletFlow> {
         ),
       _Step.pinSet => PasscodeStep(
           key: const ValueKey('pinSet'),
-          padKey: _padKey,
+          padKey: _setPadKey,
           title: 'Create a passcode',
           subtitle: 'Enter a 6-digit code to unlock Nimbus.',
           onBack: () => _go(_Step.enter),
           onCompleted: (pin) {
             _firstPin = pin;
-            _padKey.currentState?.clear();
             _go(_Step.pinConfirm);
           },
         ),
       _Step.pinConfirm => PasscodeStep(
           key: const ValueKey('pinConfirm'),
-          padKey: _padKey,
+          padKey: _confirmPadKey,
           title: 'Confirm your passcode',
           subtitle: 'Re-enter your code to confirm.',
           errorText: _pinError,

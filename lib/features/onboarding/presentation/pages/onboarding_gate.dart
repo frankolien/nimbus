@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
-import '../../../../shared/presentation/pages/main_navigation_screen.dart';
+import '../../../portfolio/presentation/pages/home_screen.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
 import '../widgets/nimbus_widgets.dart';
 import 'create_wallet_flow.dart';
@@ -24,7 +24,7 @@ class OnboardingGate extends ConsumerWidget {
       VaultStatus.unknown => const _Loader(),
       VaultStatus.noWallet => _WelcomeHost(),
       VaultStatus.locked => const UnlockScreen(),
-      VaultStatus.unlocked => const MainNavigationScreen(),
+      VaultStatus.unlocked => const HomeScreen(),
     };
 
     return AnimatedSwitcher(
