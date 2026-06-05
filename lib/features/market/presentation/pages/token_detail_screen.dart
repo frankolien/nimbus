@@ -6,7 +6,8 @@ import '../../../../core/widgets/skeleton.dart';
 import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
 import '../../../portfolio/presentation/providers/portfolio_provider.dart';
 import '../../../transfer/presentation/pages/receive_screen.dart';
-import '../../../transfer/presentation/pages/send_screen.dart';
+import '../../../transfer/presentation/pages/send_recipient_screen.dart';
+import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../data/market_service.dart';
 import '../providers/market_providers.dart';
@@ -65,7 +66,7 @@ class _TokenDetailScreenState extends ConsumerState<TokenDetailScreen> {
             const SizedBox(height: 26),
             MarketStatsList(stats: stats.valueOrNull, loading: stats.isLoading),
             const SizedBox(height: 20),
-            _Actions(),
+            _Actions(network: _network),
           ],
         ),
       ),
@@ -96,10 +97,17 @@ class _Chart extends StatelessWidget {
 }
 
 class _Actions extends StatelessWidget {
+  const _Actions({required this.network});
+
+  final Network network;
+
   @override
   Widget build(BuildContext context) {
     void push(Widget p) =>
         Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => p));
+    // Native sends are wired for EVM + Solana; other chains land later.
+    final canSend = network.family == ChainFamily.evm ||
+        network.family == ChainFamily.solana;
     return Row(
       children: [
         Expanded(
@@ -111,7 +119,13 @@ class _Actions extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: NbButton(label: 'Send', onTap: () => push(const SendScreen())),
+          child: NbButton(
+            label: 'Send',
+            enabled: canSend,
+            onTap: () {
+              if (canSend) push(SendRecipientScreen(network: network));
+            },
+          ),
         ),
       ],
     );

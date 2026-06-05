@@ -40,11 +40,6 @@ class CustodialWalletService {
         throw CustodialWalletException('Generated invalid private key format');
       }
 
-      print('Generated wallet for user: $userId');
-      print('Address: ${address.hex}');
-      print('Private key length: ${privateKeyHex.length}');
-      print('Private key preview: ${privateKeyHex.substring(0, 10)}...');
-      print('Private key format validation: ✅');
 
       await _storeWalletData(userId, {
         _privateKeyKey: privateKeyHex,

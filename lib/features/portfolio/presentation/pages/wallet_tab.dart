@@ -7,7 +7,8 @@ import '../../../market/presentation/pages/token_detail_screen.dart';
 import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
 import '../../../settings/presentation/pages/account_detail_screen.dart';
 import '../../../transfer/presentation/pages/receive_screen.dart';
-import '../../../transfer/presentation/pages/send_screen.dart';
+import '../../../transfer/presentation/pages/select_token_screen.dart';
+import '../../../transfer/presentation/pages/send_recipient_screen.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
@@ -102,7 +103,7 @@ class WalletTab extends ConsumerWidget {
         WalletAction(
             icon: Icons.arrow_upward,
             label: 'Send',
-            onTap: () => _push(context, const SendScreen())),
+            onTap: () => _startSend(context)),
         WalletAction(
             icon: Icons.swap_horiz, label: 'Swap', onTap: () => _soon(context)),
         WalletAction(
@@ -113,6 +114,14 @@ class WalletTab extends ConsumerWidget {
 
   void _openToken(BuildContext context, Network network) =>
       _push(context, TokenDetailScreen(network: network));
+
+  /// Send flow: pick the asset, then continue to the recipient step.
+  Future<void> _startSend(BuildContext context) async {
+    final network = await showSelectTokenSheet(context);
+    if (network != null && context.mounted) {
+      _push(context, SendRecipientScreen(network: network));
+    }
+  }
 
   void _push(BuildContext context, Widget page) => Navigator.of(context)
       .push(MaterialPageRoute<void>(builder: (_) => page));
