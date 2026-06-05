@@ -42,7 +42,7 @@ class ReceiveDetailScreen extends ConsumerWidget {
     final address = account?.account(network.family)?.address ?? '';
 
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [

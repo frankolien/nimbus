@@ -110,7 +110,7 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).maybePop();
       });
-      return const Scaffold(backgroundColor: NB.bg);
+      return const Scaffold(backgroundColor: Colors.transparent);
     }
 
     // Seed the name field once.

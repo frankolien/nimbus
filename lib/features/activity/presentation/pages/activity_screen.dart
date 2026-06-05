@@ -21,7 +21,7 @@ class ActivityScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activity = ref.watch(activityProvider);
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [

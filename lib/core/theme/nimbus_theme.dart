@@ -68,7 +68,9 @@ abstract final class NB {
   static ThemeData theme() {
     final base = ThemeData.dark(useMaterial3: true);
     return base.copyWith(
-      scaffoldBackgroundColor: bg,
+      // Transparent so AppBackground (installed in MaterialApp.builder) owns
+      // the canvas; a chosen wallpaper then shows through every scaffold.
+      scaffoldBackgroundColor: Colors.transparent,
       colorScheme: base.colorScheme.copyWith(
         primary: orange,
         secondary: green,

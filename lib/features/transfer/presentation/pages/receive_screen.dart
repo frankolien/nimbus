@@ -70,7 +70,7 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     }
 
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/nimbus_theme.dart';
 import '../../../activity/presentation/pages/activity_screen.dart';
 import '../../../discovery/presentation/pages/discovery_tab.dart';
 import '../../../settings/presentation/pages/settings_tab.dart';
@@ -31,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: IndexedStack(
         index: _tab,
         children: const [

@@ -15,6 +15,7 @@ import '../widgets/settings_feedback.dart';
 import '../widgets/settings_profile_card.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/settings_section.dart';
+import 'appearance_screen.dart';
 import 'manage_accounts_screen.dart';
 import 'network_screen.dart';
 import 'security_screen.dart';
@@ -73,6 +74,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           label: 'Preferences',
           accent: NB.orange,
           onTap: () => showComingSoon(context),
+        ),
+        _Item(
+          icon: Icons.wallpaper,
+          label: 'Appearance',
+          accent: NB.pink,
+          onTap: () => _push(const AppearanceScreen()),
         ),
         _Item(
           icon: Icons.shield_outlined,

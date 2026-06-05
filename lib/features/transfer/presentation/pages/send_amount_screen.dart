@@ -172,7 +172,7 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
         : (hasPrice ? '≈ ${Fmt.usd(_usdAmount)}' : '');
 
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

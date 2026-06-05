@@ -48,6 +48,10 @@ dependencies:
   fl_chart: ^0.70.0
   intl: ^0.20.2
   lottie: ^3.1.2
+
+  # Media & files
+  image_picker: ^1.0.4
+  path_provider: ^2.1.0
   
   # Environment
   flutter_dotenv: ^5.1.0
@@ -76,4 +80,5 @@ flutter:
   assets:
     - assets/images/
     - assets/lotties/
+    - assets/backgrounds/
     - .env

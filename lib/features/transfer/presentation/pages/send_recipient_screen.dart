@@ -88,7 +88,7 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
     }
 
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [

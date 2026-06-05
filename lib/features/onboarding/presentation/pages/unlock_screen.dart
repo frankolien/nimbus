@@ -78,7 +78,7 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 0, 22, 30),

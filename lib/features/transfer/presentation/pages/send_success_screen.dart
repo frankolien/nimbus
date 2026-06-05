@@ -35,7 +35,7 @@ class SendSuccessScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cluster = ref.read(networkClusterProvider);
     return Scaffold(
-      backgroundColor: NB.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 22),
