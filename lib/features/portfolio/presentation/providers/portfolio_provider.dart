@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/domain/entities/network_cluster.dart';
 import '../../../wallet/domain/entities/wallet_account.dart';
@@ -11,6 +12,7 @@ import '../../data/balance_service.dart';
 import '../../data/binance_price_stream.dart';
 import '../../data/portfolio_cache.dart';
 import '../../data/price_service.dart';
+import '../../data/solana_account_stream.dart';
 import 'network_cluster_provider.dart';
 
 /// One network's slice of the portfolio.
@@ -76,6 +78,25 @@ class Portfolio {
   double get totalUsd =>
       entries.fold(0, (sum, e) => sum + (e.usdValue ?? 0));
 
+  /// The portfolio's 24h change (absolute USD + percent), derived from each
+  /// asset's own 24h move weighted by how much of it we hold. Null until at
+  /// least one held asset has both a value and a 24h figure — so we render a
+  /// pill only when it reflects real data, never a fabricated zero.
+  ({double usd, double pct})? get delta24h {
+    var prior = 0.0, current = 0.0;
+    var any = false;
+    for (final e in entries) {
+      final value = e.usdValue;
+      final change = e.change24h;
+      if (value == null || change == null || change <= -100) continue;
+      any = true;
+      current += value;
+      prior += value / (1 + change / 100);
+    }
+    if (!any || prior == 0) return null;
+    return (usd: current - prior, pct: (current - prior) / prior * 100);
+  }
+
   Map<String, dynamic> toJson() => {
         'entries': entries.map((e) => e.toJson()).toList(),
         'updatedAt': updatedAt?.millisecondsSinceEpoch,
@@ -96,6 +117,8 @@ final balanceServiceProvider = Provider((ref) => BalanceService());
 final priceServiceProvider = Provider((ref) => PriceService());
 final binancePriceStreamProvider = Provider((ref) => BinancePriceStream());
 final portfolioCacheProvider = Provider((ref) => PortfolioCache());
+final solanaAccountStreamProvider =
+    Provider((ref) => const SolanaAccountStream());
 
 /// Live native-asset prices via the Binance WebSocket (sub-second updates).
 final livePricesProvider =
@@ -115,6 +138,7 @@ final portfolioProvider = StateNotifierProvider.autoDispose<PortfolioNotifier,
     balances: ref.watch(balanceServiceProvider),
     prices: ref.watch(priceServiceProvider),
     cache: ref.watch(portfolioCacheProvider),
+    solanaStream: ref.watch(solanaAccountStreamProvider),
     account: account,
     cluster: cluster,
   );
@@ -133,22 +157,26 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     required BalanceService balances,
     required PriceService prices,
     required PortfolioCache cache,
+    required SolanaAccountStream solanaStream,
     required this.account,
     required this.cluster,
   })  : _balances = balances,
         _priceService = prices,
         _cache = cache,
+        _solanaStream = solanaStream,
         super(const AsyncValue.loading());
 
   final BalanceService _balances;
   final PriceService _priceService;
   final PortfolioCache _cache;
+  final SolanaAccountStream _solanaStream;
   final WalletAccount? account;
   final NetworkCluster cluster;
 
   static const _interval = Duration(seconds: 20);
   static const _networks = Network.values;
   Timer? _timer;
+  StreamSubscription<({double sol, int slot})>? _solanaSub;
 
   /// Latest known price per network (from WS once live, else CoinGecko).
   final Map<Network, PriceInfo> _prices = {};
@@ -157,6 +185,13 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
   /// CoinGecko so the two sources don't fight over the value.
   bool _liveActive = false;
 
+  /// The freshest Solana balance we've accepted and the slot it came from. Both
+  /// the poll and the realtime WS feed through [_acceptSolana]; a lower slot
+  /// never overwrites a higher one, so the balance can't regress to an older
+  /// on-chain state (e.g. a lagging poll reverting a realtime push).
+  double? _solanaAmount;
+  int _solanaSlot = -1;
+
   void start() {
     if (account == null) {
       state = const AsyncValue.data(Portfolio(entries: []));
@@ -164,6 +199,18 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     }
     _bootstrap();
     _timer = Timer.periodic(_interval, (_) => _load());
+    _watchSolana();
+  }
+
+  /// Subscribe to realtime Solana balance pushes so incoming SOL appears at
+  /// once, without waiting for the next poll. The poll still covers the other
+  /// chains; if the socket is down, balances stay correct via the poll.
+  void _watchSolana() {
+    final address = account?.account(ChainFamily.solana)?.address;
+    if (address == null) return;
+    _solanaSub = _solanaStream
+        .watch(address: address, cluster: cluster)
+        .listen((u) => applySolanaBalance(u.sol, u.slot));
   }
 
   /// Show the cached snapshot immediately (no skeleton on relaunch), then
@@ -186,7 +233,10 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     await _load();
   }
 
-  void stop() => _timer?.cancel();
+  void stop() {
+    _timer?.cancel();
+    _solanaSub?.cancel();
+  }
 
   /// Manual refresh (pull-to-refresh) — re-fetches balances.
   Future<void> refresh() => _load();
@@ -205,6 +255,33 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     ));
   }
 
+  /// Apply a realtime Solana balance push: update the Solana entry's amount in
+  /// place (keeping its live price) so the total reflects incoming funds the
+  /// moment they confirm — no manual refresh needed.
+  void applySolanaBalance(double sol, int slot) {
+    if (!_acceptSolana(sol, slot)) return; // ignore an out-of-order frame
+    final current = state.valueOrNull;
+    if (current == null || !mounted) return;
+    if (!current.entries.any((e) => e.network == Network.solana)) return;
+    state = AsyncValue.data(Portfolio(
+      entries: [
+        for (final e in current.entries)
+          e.network == Network.solana ? e.copyWith(amount: sol) : e,
+      ],
+      updatedAt: DateTime.now(),
+    ));
+  }
+
+  /// Record [sol] as the current Solana balance only if [slot] is newer than
+  /// the last one accepted; returns whether it won. Shared by the poll and the
+  /// realtime WS so neither can revert to an older slot.
+  bool _acceptSolana(double sol, int slot) {
+    if (slot <= _solanaSlot) return false;
+    _solanaSlot = slot;
+    _solanaAmount = sol;
+    return true;
+  }
+
   Future<void> _load() async {
     final acct = account;
     if (acct == null) return;
@@ -221,7 +298,14 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     final balanceFutures = targets.entries.map((e) async {
       try {
         final b = await _balances.fetch(e.key, e.value, cluster);
-        return PortfolioEntry(network: e.key, address: e.value, amount: b.amount);
+        var amount = b.amount;
+        // Keep Solana monotonic by slot: a stale poll can't revert a newer
+        // realtime push, but a recovering poll takes back over if the WS drops.
+        if (e.key == Network.solana && b.slot != null) {
+          _acceptSolana(b.amount, b.slot!);
+          amount = _solanaAmount ?? b.amount;
+        }
+        return PortfolioEntry(network: e.key, address: e.value, amount: amount);
       } catch (err) {
         debugPrint('balance ${e.key.id} failed: $err');
         return PortfolioEntry(network: e.key, address: e.value, error: 'unavailable');

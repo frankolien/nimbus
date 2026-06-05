@@ -84,19 +84,42 @@ const popularDapps = <Dapp>[
   Dapp(name: 'Aerodrome', category: 'DeFi · Base', url: 'https://aerodrome.finance', chainId: 'base', mono: 'Æ', accent: Color(0xFF2151F5)),
 ];
 
-/// A Browse shortcut tile (visual category entry).
+/// A Browse shortcut tile. Each plays a small Lottie on a uniform tile, with
+/// [icon] as a graceful fallback if the asset can't load.
 class BrowseCategory {
-  const BrowseCategory({required this.label, required this.icon, required this.accent});
+  const BrowseCategory({
+    required this.label,
+    required this.icon,
+    required this.lottie,
+  });
   final String label;
   final IconData icon;
-  final Color accent;
+
+  /// Lottie asset shown in the tile; [icon] renders instead if it fails.
+  final String lottie;
 }
 
 const browseCategories = <BrowseCategory>[
-  BrowseCategory(label: 'Swap', icon: Icons.swap_horiz, accent: Color(0xFFF2611C)),
-  BrowseCategory(label: 'NFTs', icon: Icons.image_outlined, accent: Color(0xFF9A6BFF)),
-  BrowseCategory(label: 'Stake', icon: Icons.savings_outlined, accent: Color(0xFF2FD37E)),
-  BrowseCategory(label: 'Bridge', icon: Icons.compare_arrows, accent: Color(0xFF3FA0FF)),
-  BrowseCategory(label: 'Games', icon: Icons.sports_esports_outlined, accent: Color(0xFFFF5BA8)),
-  BrowseCategory(label: 'Earn', icon: Icons.percent, accent: Color(0xFFF0B90B)),
+  BrowseCategory(
+      label: 'Swap', icon: Icons.swap_horiz, lottie: 'assets/lotties/swap.json'),
+  BrowseCategory(
+      label: 'NFTs',
+      icon: Icons.image_outlined,
+      lottie: 'assets/lotties/nfts.json'),
+  BrowseCategory(
+      label: 'Stake',
+      icon: Icons.layers_outlined,
+      lottie: 'assets/lotties/stake.json'),
+  BrowseCategory(
+      label: 'Bridge',
+      icon: Icons.alt_route,
+      lottie: 'assets/lotties/bridge.json'),
+  BrowseCategory(
+      label: 'Games',
+      icon: Icons.sports_esports_outlined,
+      lottie: 'assets/lotties/games.json'),
+  BrowseCategory(
+      label: 'Earn',
+      icon: Icons.trending_up,
+      lottie: 'assets/lotties/earn.json'),
 ];

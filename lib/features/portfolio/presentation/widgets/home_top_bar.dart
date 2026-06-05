@@ -1,72 +1,111 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
+import '../../../../core/widgets/chain_dots.dart';
+import '../../../wallet/domain/entities/network.dart';
 
-/// Top bar of the wallet tab: account avatar + (editable) name, support and
-/// scan actions.
+/// Top bar of the wallet tab: an account / all-chains selector pill on the left
+/// and a single eye toggle (hide/show balance) on the right.
 class HomeTopBar extends StatelessWidget {
   const HomeTopBar({
     super.key,
     required this.accountName,
-    required this.onEditName,
-    required this.onSupport,
-    required this.onScan,
+    required this.chains,
+    required this.balanceHidden,
+    required this.onTapAccount,
+    required this.onToggleBalance,
   });
 
   final String accountName;
-  final VoidCallback onEditName;
-  final VoidCallback onSupport;
-  final VoidCallback onScan;
+
+  /// Chains the active account spans, shown as overlapping logos in the pill.
+  final List<Network> chains;
+
+  /// Whether balances are currently masked — drives the eye icon.
+  final bool balanceHidden;
+
+  final VoidCallback onTapAccount;
+  final VoidCallback onToggleBalance;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Flexible(
-          child: GestureDetector(
-            onTap: onEditName,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _AccountAvatar(),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    accountName,
-                    overflow: TextOverflow.ellipsis,
-                    style: NB.font(16, weight: FontWeight.w700),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                const Icon(Icons.keyboard_arrow_down, size: 20, color: NB.text2),
-              ],
+        // Fills the row so the eye sits flush right; the pill hugs its content
+        // on the left and ellipsizes a long name rather than overflowing.
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _AccountPill(
+              name: accountName,
+              chains: chains,
+              onTap: onTapAccount,
             ),
           ),
         ),
-        const Spacer(),
-        _CircleIconButton(icon: Icons.headset_mic_outlined, onTap: onSupport),
-        const SizedBox(width: 10),
-        _CircleIconButton(icon: Icons.qr_code_scanner, onTap: onScan),
+        const SizedBox(width: 12),
+        _CircleIconButton(
+          icon: balanceHidden
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined,
+          onTap: onToggleBalance,
+        ),
       ],
     );
   }
 }
 
-class _AccountAvatar extends StatelessWidget {
-  const _AccountAvatar();
+class _AccountPill extends StatelessWidget {
+  const _AccountPill({
+    required this.name,
+    required this.chains,
+    required this.onTap,
+  });
+
+  final String name;
+  final List<Network> chains;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [NB.orangeHi, Color(0xFF7A45F0)],
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: NB.surface2,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (chains.isNotEmpty) ...[
+              ChainDots(networks: chains, size: 20, ring: NB.surface2),
+              const SizedBox(width: 9),
+            ],
+            Flexible(
+              child: RichText(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: name,
+                      style: NB.font(15.5, weight: FontWeight.w700),
+                    ),
+                    TextSpan(
+                      text: ' · All Chains',
+                      style: NB.font(15.5,
+                          weight: FontWeight.w500, color: NB.text2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(Icons.keyboard_arrow_down, size: 20, color: NB.text2),
+          ],
         ),
       ),
     );

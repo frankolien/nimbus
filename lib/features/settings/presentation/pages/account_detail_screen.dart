@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/chain_dots.dart';
 import '../../../../core/widgets/coin_logo.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/wallet_account.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
 import '../widgets/account_avatar.dart';
-import '../widgets/chain_dots.dart';
 import '../widgets/settings_scaffold.dart';
 import '../widgets/settings_section.dart';
 

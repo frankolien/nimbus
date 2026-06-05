@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../data/dapp_catalog.dart';
 
-/// The "Browse" row of category shortcuts (Swap, NFTs, Stake, …) — tinted icon
-/// tiles with a label underneath.
+/// The "Browse" row of category shortcuts (Swap, NFTs, Stake, …) — each a small
+/// looping Lottie on a uniform tile with a label underneath.
 class BrowseGrid extends StatelessWidget {
   const BrowseGrid({super.key, required this.onTap});
 
@@ -22,17 +23,26 @@ class BrowseGrid extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 43,
-                  height: 43,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: c.accent.withValues(alpha: 0.14),
+                    color: NB.surface2,
                     borderRadius: BorderRadius.circular(13),
                   ),
                   alignment: Alignment.center,
-                  child: Icon(c.icon, size: 19, color: c.accent),
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Lottie.asset(
+                      c.lottie,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(c.icon, size: 21, color: NB.text),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(c.label, style: NB.font(10, color: NB.text2)),
+                const SizedBox(height: 7),
+                Text(c.label, style: NB.font(10.5, color: NB.text2)),
               ],
             ),
           ),

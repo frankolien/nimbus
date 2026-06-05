@@ -73,7 +73,7 @@ class _DevnetBarState extends ConsumerState<DevnetBar> {
         children: [
           _pill(cluster.label),
           const Spacer(),
-          _airdropButton(),
+          //_airdropButton(),
         ],
       ),
     );
@@ -103,7 +103,7 @@ class _DevnetBarState extends ConsumerState<DevnetBar> {
     );
   }
 
-  Widget _airdropButton() {
+  /*Widget _airdropButton() {
     return GestureDetector(
       onTap: _busy ? null : _airdrop,
       behavior: HitTestBehavior.opaque,
@@ -128,5 +128,5 @@ class _DevnetBarState extends ConsumerState<DevnetBar> {
         ),
       ),
     );
-  }
+  }*/
 }

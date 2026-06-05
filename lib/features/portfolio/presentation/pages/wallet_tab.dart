@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
+import '../../../../core/widgets/chain_dots.dart';
 import '../../../market/presentation/pages/token_detail_screen.dart';
 import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
+import '../../../settings/presentation/pages/account_detail_screen.dart';
 import '../../../transfer/presentation/pages/receive_screen.dart';
 import '../../../transfer/presentation/pages/send_screen.dart';
+import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
+import '../providers/balance_visibility_provider.dart';
 import '../providers/portfolio_provider.dart';
-import '../widgets/account_name_dialog.dart';
 import '../widgets/asset_list.dart';
 import '../widgets/devnet_bar.dart';
 import '../widgets/home_top_bar.dart';
@@ -26,7 +29,18 @@ class WalletTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(walletSessionProvider);
     final portfolio = ref.watch(portfolioProvider).valueOrNull;
-    final name = session.activeAccount?.label ?? 'Wallet';
+    final hidden = ref.watch(balanceHiddenProvider);
+    final account = session.activeAccount;
+    final name = account?.label ?? 'Wallet';
+    final chains = <Network>[
+      for (final family in const [
+        ChainFamily.solana,
+        ChainFamily.evm,
+        ChainFamily.bitcoin,
+        ChainFamily.sui,
+      ])
+        if (account?.account(family) != null) ChainDots.representative(family),
+    ];
 
     return SafeArea(
       bottom: false,
@@ -40,17 +54,23 @@ class WalletTab extends ConsumerWidget {
           children: [
             HomeTopBar(
               accountName: name,
-              onEditName: () => _editName(context, ref, session),
-              onSupport: () => _soon(context),
-              onScan: () => _soon(context),
+              chains: chains,
+              balanceHidden: hidden,
+              onTapAccount: () => _push(
+                context,
+                AccountDetailScreen(index: session.activeAccountIndex),
+              ),
+              onToggleBalance: () =>
+                  ref.read(balanceHiddenProvider.notifier).toggle(),
             ),
-            const DevnetBar(),
-            const SizedBox(height: 26),
+            //const DevnetBar(),
+            const SizedBox(height: 17),
             PortfolioTotalHeader(
               totalUsd: portfolio?.totalUsd,
-              live: portfolio?.updatedAt != null,
+              change: portfolio?.delta24h,
+              hidden: hidden,
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 19),
             WalletActions(actions: _actions(context)),
             const SizedBox(height: 22),
             const Divider(color: NB.border, height: 1),
@@ -60,6 +80,7 @@ class WalletTab extends ConsumerWidget {
             AssetList(
               entries: portfolio?.entries,
               onTap: (network) => _openToken(context, network),
+              hidden: hidden,
             ),
             const SizedBox(height: 18),
             Center(
@@ -83,25 +104,12 @@ class WalletTab extends ConsumerWidget {
             label: 'Send',
             onTap: () => _push(context, const SendScreen())),
         WalletAction(
-            icon: Icons.swap_horiz, label: 'Exchange', onTap: () => _soon(context)),
+            icon: Icons.swap_horiz, label: 'Swap', onTap: () => _soon(context)),
         WalletAction(
             icon: Icons.arrow_downward,
             label: 'Receive',
             onTap: () => _push(context, const ReceiveScreen())),
       ];
-
-  Future<void> _editName(
-      BuildContext context, WidgetRef ref, WalletSessionState session) async {
-    final name = await showAccountNameDialog(
-      context,
-      current: session.activeAccount?.label ?? '',
-    );
-    if (name != null) {
-      await ref
-          .read(walletSessionProvider.notifier)
-          .renameAccount(session.activeAccountIndex, name);
-    }
-  }
 
   void _openToken(BuildContext context, Network network) =>
       _push(context, TokenDetailScreen(network: network));

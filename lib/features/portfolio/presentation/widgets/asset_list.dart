@@ -10,11 +10,20 @@ import '../providers/portfolio_provider.dart';
 /// The "My assets" list. Shows skeleton rows until the first load, then one tile
 /// per asset sorted by USD value (highest first).
 class AssetList extends StatelessWidget {
-  const AssetList({super.key, required this.entries, required this.onTap});
+  const AssetList({
+    super.key,
+    required this.entries,
+    required this.onTap,
+    this.hidden = false,
+  });
 
   /// Null while the first portfolio load is in flight (no cache yet).
   final List<PortfolioEntry>? entries;
   final void Function(Network) onTap;
+
+  /// When true, per-asset balances (value + amount) are masked; the market
+  /// price and 24h change stay visible since they aren't private.
+  final bool hidden;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +34,7 @@ class AssetList extends StatelessWidget {
     return Column(
       children: [
         for (final e in sorted)
-          AssetTile(entry: e, onTap: () => onTap(e.network)),
+          AssetTile(entry: e, onTap: () => onTap(e.network), hidden: hidden),
       ],
     );
   }
@@ -33,9 +42,15 @@ class AssetList extends StatelessWidget {
 
 /// One asset row: logo, name + price/change, value + amount.
 class AssetTile extends StatelessWidget {
-  const AssetTile({super.key, required this.entry, required this.onTap});
+  const AssetTile({
+    super.key,
+    required this.entry,
+    required this.onTap,
+    this.hidden = false,
+  });
   final PortfolioEntry entry;
   final VoidCallback onTap;
+  final bool hidden;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +97,16 @@ class AssetTile extends StatelessWidget {
   }
 
   Widget _valueAndAmount() {
+    if (hidden) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text('••••', style: NB.font(15, weight: FontWeight.w700)),
+          const SizedBox(height: 3),
+          Text('••••', style: NB.font(12.5, color: NB.text3)),
+        ],
+      );
+    }
     if (entry.error != null) {
       return Text('—', style: NB.font(14, color: NB.text3));
     }

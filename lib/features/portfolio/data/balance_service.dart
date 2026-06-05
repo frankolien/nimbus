@@ -10,6 +10,7 @@ class NativeBalance {
     required this.network,
     required this.address,
     required this.amount,
+    this.slot,
   });
 
   final Network network;
@@ -17,6 +18,11 @@ class NativeBalance {
 
   /// Balance in whole native units (e.g. ETH, SOL, BTC), not the base unit.
   final double amount;
+
+  /// Solana confirmation slot for this read (null for other chains). Lets the
+  /// portfolio keep the balance monotonic — a newer slot never loses to an
+  /// older one, so a lagging poll can't revert a realtime push.
+  final int? slot;
 }
 
 /// Fetches native balances from each chain's RPC/REST endpoint. Every call goes
@@ -31,14 +37,21 @@ class BalanceService {
 
   Future<NativeBalance> fetch(Network network, String address,
       [NetworkCluster cluster = NetworkCluster.mainnet]) async {
-    final raw = switch (network.family) {
-      ChainFamily.evm => await _evm(network, address, cluster),
-      ChainFamily.solana => await _solana(network, address, cluster),
-      ChainFamily.sui => await _sui(network, address, cluster),
-      ChainFamily.bitcoin => await _bitcoin(network, address, cluster),
-    };
+    double raw;
+    int? slot;
+    switch (network.family) {
+      case ChainFamily.evm:
+        raw = await _evm(network, address, cluster);
+      case ChainFamily.solana:
+        (raw, slot) = await _solana(network, address, cluster);
+      case ChainFamily.sui:
+        raw = await _sui(network, address, cluster);
+      case ChainFamily.bitcoin:
+        raw = await _bitcoin(network, address, cluster);
+    }
     final amount = raw / _pow10(network.nativeDecimals);
-    return NativeBalance(network: network, address: address, amount: amount);
+    return NativeBalance(
+        network: network, address: address, amount: amount, slot: slot);
   }
 
   // eth_getBalance -> hex wei
@@ -55,17 +68,25 @@ class BalanceService {
     return BigInt.parse(hex, radix: 16).toDouble();
   }
 
-  // getBalance -> lamports
-  Future<double> _solana(
+  // getBalance -> (lamports, slot). Confirmed commitment matches the realtime
+  // WS so the poll doesn't lag behind it; the slot lets the portfolio reject a
+  // stale read.
+  Future<(double, int?)> _solana(
       Network network, String address, NetworkCluster cluster) async {
     final json =
         await _http.postJson(Uri.parse(_endpoints.urlFor(network, cluster)), {
       'jsonrpc': '2.0',
       'id': 1,
       'method': 'getBalance',
-      'params': [address],
+      'params': [
+        address,
+        {'commitment': 'confirmed'},
+      ],
     });
-    return ((json['result']?['value']) as num).toDouble();
+    final result = json['result'] as Map<String, dynamic>;
+    final lamports = (result['value'] as num).toDouble();
+    final slot = (result['context']?['slot'] as num?)?.toInt();
+    return (lamports, slot);
   }
 
   // suix_getBalance -> totalBalance (MIST, as string)

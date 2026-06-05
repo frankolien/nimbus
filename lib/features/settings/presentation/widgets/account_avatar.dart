@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
+import '../../../../core/widgets/chain_dots.dart';
 import '../../../wallet/domain/entities/network.dart';
-import 'chain_dots.dart';
 
 /// A circular account avatar: a brand-gradient disc with the account's initial,
 /// optionally overlaid with the chains it spans at the bottom-right.

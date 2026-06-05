@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/nimbus_theme.dart';
-import '../../../../core/widgets/coin_logo.dart';
-import '../../../wallet/domain/entities/chain_family.dart';
-import '../../../wallet/domain/entities/network.dart';
+import '../../features/wallet/domain/entities/chain_family.dart';
+import '../../features/wallet/domain/entities/network.dart';
+import '../theme/nimbus_theme.dart';
+import 'coin_logo.dart';
 
 /// A row of overlapping chain logos with a thin ring, used to show at a glance
 /// which chains an account spans. Uses real coin artwork via [CoinLogo].
