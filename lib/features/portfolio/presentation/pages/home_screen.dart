@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
+import '../../../activity/presentation/pages/activity_screen.dart';
 import '../../../discovery/presentation/pages/discovery_tab.dart';
 import '../../../settings/presentation/pages/settings_tab.dart';
 import '../widgets/coming_soon_view.dart';
@@ -35,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tab,
         children: const [
           WalletTab(),
-          ComingSoonView(label: 'History'),
+          ActivityScreen(),
           ComingSoonView(label: 'Stake'),
           DiscoveryTab(),
           SettingsTab(),

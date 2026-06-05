@@ -69,9 +69,7 @@ class CustodialWalletService {
       final mnemonic = await _secureStorage.read(
           key: '${_storageKeyPrefix}${userId}_$_mnemonicKey');
 
-      print('🔍 Loading wallet for user: $userId');
-      print('🔍 Private key length: ${privateKeyStr?.length}');
-      print('🔍 Address: $addressStr');
+    
 
       if (privateKeyStr == null || addressStr == null) {
         print('No wallet found for user: $userId');
@@ -100,8 +98,7 @@ class CustodialWalletService {
         throw FormatException('Invalid private key format');
       }
 
-      print('Clean private key: ${cleanPrivateKeyStr.substring(0, 10)}...');
-      print('Private key length after cleaning: ${cleanPrivateKeyStr.length}');
+
 
       final privateKey = EthPrivateKey.fromHex(cleanPrivateKeyStr);
 
