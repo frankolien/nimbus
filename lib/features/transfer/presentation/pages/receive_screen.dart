@@ -169,7 +169,8 @@ class _CircleButton extends StatelessWidget {
       child: Container(
         width: 38,
         height: 38,
-        decoration: const BoxDecoration(color: NB.surface, shape: BoxShape.circle),
+        decoration:
+            const BoxDecoration(color: NB.surface, shape: BoxShape.circle),
         child: Icon(icon, size: 18, color: NB.text2),
       ),
     );

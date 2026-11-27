@@ -5,24 +5,23 @@ import '../../../../core/theme/nimbus_theme.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/chain_dots.dart';
 import '../../../../core/widgets/search_field.dart';
-import '../../../portfolio/presentation/providers/network_cluster_provider.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
-import '../../../wallet/domain/entities/network_cluster.dart';
 import '../../../wallet/domain/entities/wallet_account.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
 import '../widgets/settings_feedback.dart';
 import '../widgets/settings_profile_card.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/settings_section.dart';
+import '../widgets/wallet_removal.dart';
 import 'appearance_screen.dart';
 import 'manage_accounts_screen.dart';
 import 'network_screen.dart';
 import 'security_screen.dart';
 
-/// The Settings tab: a searchable, grouped list fusing a profile card, tinted
-/// rows with live badges, a destructive reset, and a version footer. Rows with
-/// real backing (accounts, security) drill in; the rest are honestly deferred.
+/// The Settings tab: a searchable, grouped list with a profile card, tinted
+/// rows, a remove-wallet button, and a version footer. Rows with real backing
+/// (account, security, network) drill in; the rest show "coming soon".
 class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({super.key});
 
@@ -59,14 +58,13 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   String _primaryAddress(WalletAccount a) =>
       a.account(ChainFamily.solana)?.address ?? a.accounts.first.address;
 
-  List<List<_Item>> _groups(WalletSessionState session, NetworkCluster cluster) {
+  List<List<_Item>> _groups() {
     return [
       [
         _Item(
           icon: Icons.account_balance_wallet_outlined,
-          label: 'Manage Accounts',
+          label: 'Account',
           accent: NB.orange,
-          badge: '${session.accounts.length}',
           onTap: () => _push(const ManageAccountsScreen()),
         ),
         _Item(
@@ -91,9 +89,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       [
         _Item(
           icon: Icons.public,
-          label: 'Active Networks',
+          label: 'Network',
           accent: NB.blue,
-          badge: cluster.label,
+          badge: 'Devnet',
           onTap: () => _push(const NetworkScreen()),
         ),
         _Item(
@@ -143,12 +141,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(walletSessionProvider);
-    final cluster = ref.watch(networkClusterProvider);
     final account = session.activeAccount;
     final searching = _query.isNotEmpty;
 
     final groups = [
-      for (final g in _groups(session, cluster))
+      for (final g in _groups())
         [for (final i in g) if (i.matches(_query)) i],
     ].where((g) => g.isNotEmpty).toList();
 
@@ -209,7 +206,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                 if (!searching) ...[
                   const SizedBox(height: 22),
-                  _ResetButton(onTap: () => _reset(context)),
+                  _ResetButton(onTap: () => confirmRemoveWallet(context, ref)),
                   const SizedBox(height: 16),
                   Center(
                     child: Text('Nimbus · Version 1.0.0',
@@ -222,17 +219,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         ],
       ),
     );
-  }
-
-  Future<void> _reset(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => const _ResetDialog(),
-    );
-    if (confirmed != true) return;
-    // The gate watches vault status and routes back to onboarding once the
-    // wallet is gone — no manual navigation needed.
-    await ref.read(walletSessionProvider.notifier).deleteWallet();
   }
 }
 
@@ -272,39 +258,9 @@ class _ResetButton extends StatelessWidget {
           border: Border.all(color: NB.red.withValues(alpha: 0.5), width: 1.5),
         ),
         alignment: Alignment.center,
-        child: Text('Reset Wallet',
+        child: Text('Remove wallet from this device',
             style: NB.font(16, weight: FontWeight.w700, color: NB.red)),
       ),
-    );
-  }
-}
-
-class _ResetDialog extends StatelessWidget {
-  const _ResetDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: NB.surface,
-      title: Text('Reset wallet?',
-          style: NB.font(18, weight: FontWeight.w800, color: NB.red)),
-      content: Text(
-        'This removes the wallet from this device. Your funds stay on-chain — '
-        'you can restore everything with your recovery phrase. Without it, '
-        'access is lost forever.',
-        style: NB.font(14, color: NB.text2, height: 1.5),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel', style: NB.font(14, color: NB.text2)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text('Reset',
-              style: NB.font(14, weight: FontWeight.w700, color: NB.red)),
-        ),
-      ],
     );
   }
 }

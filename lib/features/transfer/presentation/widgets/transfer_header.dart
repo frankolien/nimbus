@@ -18,7 +18,8 @@ class TransferHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: NB.text),
+            icon:
+                const Icon(Icons.arrow_back_ios_new, size: 20, color: NB.text),
           ),
           Expanded(
             child: Text(title,

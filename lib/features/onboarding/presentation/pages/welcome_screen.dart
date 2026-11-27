@@ -41,7 +41,7 @@ class WelcomeScreen extends StatelessWidget {
                           color: NB.orange.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(7),
                         ),
-                        child: Text('MPC',
+                        child: Text('SOLANA',
                             style: NB.font(11,
                                 weight: FontWeight.w700,
                                 color: NB.orange,
@@ -51,7 +51,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'A crypto wallet\nreimagined for\nevery chain',
+                    'A Solana wallet\nwith no seed\nphrase to write',
                     style: NB.font(34,
                         weight: FontWeight.w800,
                         color: NB.text,
@@ -60,8 +60,8 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'Self-custody across Solana, Ethereum, Bitcoin and Sui — '
-                    'one recovery phrase, keys that never leave your device.',
+                    'Your key lives in this phone’s Secure Enclave and is backed '
+                    'up to iCloud Keychain. Face ID approves every transaction.',
                     style: NB.font(15.5, color: NB.text2, height: 1.5),
                   ),
                   const Spacer(flex: 3),

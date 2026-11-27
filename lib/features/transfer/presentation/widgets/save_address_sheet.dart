@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
-import '../../data/evm_send_service.dart';
-import '../../data/solana_send_service.dart';
+import '../../domain/solana_recipient.dart';
 import '../../domain/saved_address.dart';
 import '../providers/address_providers.dart';
 
@@ -62,9 +61,11 @@ class _SaveAddressSheetState extends ConsumerState<_SaveAddressSheet> {
     super.dispose();
   }
 
+  // Solana accepts an address or a `.sol` name. Other families only need a
+  // shape check since Nimbus can't send on them yet.
   bool _isValidAddress(String a) => widget.family == ChainFamily.solana
-      ? SolanaSendService.isValidAddress(a)
-      : EvmSendService.isValidAddress(a);
+      ? isValidSolanaRecipient(a)
+      : RegExp(r'^0x[0-9a-fA-F]{40}$').hasMatch(a);
 
   Future<void> _save() async {
     final label = _name.text.trim();
@@ -120,7 +121,8 @@ class _SaveAddressSheetState extends ConsumerState<_SaveAddressSheet> {
             Text(_error!, style: NB.font(13, color: NB.red)),
           ],
           const SizedBox(height: 22),
-          NbButton(label: editing ? 'Save changes' : 'Save address', onTap: _save),
+          NbButton(
+              label: editing ? 'Save changes' : 'Save address', onTap: _save),
         ],
       ),
     );

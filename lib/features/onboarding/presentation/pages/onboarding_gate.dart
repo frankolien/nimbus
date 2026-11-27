@@ -7,12 +7,11 @@ import '../../../wallet/presentation/providers/wallet_session.dart';
 import '../widgets/nimbus_widgets.dart';
 import 'create_wallet_flow.dart';
 import 'import_wallet_flow.dart';
-import 'unlock_screen.dart';
 import 'welcome_screen.dart';
 
-/// Single source of truth for first-launch routing. Watches the vault status
-/// and shows: a brief loader → onboarding (no wallet) → unlock (locked) →
-/// the main app (unlocked).
+/// Single source of truth for first-launch routing. Watches the wallet status
+/// and shows a brief loader, then onboarding (no wallet) or the main app.
+/// There is no lock screen: Face ID gates each signature instead.
 class OnboardingGate extends ConsumerWidget {
   const OnboardingGate({super.key});
 
@@ -21,9 +20,9 @@ class OnboardingGate extends ConsumerWidget {
     final status = ref.watch(walletSessionProvider.select((s) => s.status));
 
     final Widget screen = switch (status) {
-      VaultStatus.unknown => const _Loader(),
+      // The session never reports locked; treat it like loading.
+      VaultStatus.unknown || VaultStatus.locked => const _Loader(),
       VaultStatus.noWallet => _WelcomeHost(),
-      VaultStatus.locked => const UnlockScreen(),
       VaultStatus.unlocked => const HomeScreen(),
     };
 
@@ -49,17 +48,20 @@ class _WelcomeHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Capture the navigator up front. Creating or importing flips the session to
+    // unlocked, which disposes this widget, so its context is gone by "Open wallet".
+    final nav = Navigator.of(context);
     return WelcomeScreen(
-      onCreate: () => Navigator.of(context).push(
+      onCreate: () => nav.push(
         _slide(CreateWalletFlow(
-          onExit: () => Navigator.of(context).maybePop(),
-          onDone: () => Navigator.of(context).popUntil((r) => r.isFirst),
+          onExit: () => nav.maybePop(),
+          onDone: () => nav.popUntil((r) => r.isFirst),
         )),
       ),
-      onImport: () => Navigator.of(context).push(
+      onImport: () => nav.push(
         _slide(ImportWalletFlow(
-          onExit: () => Navigator.of(context).maybePop(),
-          onDone: () => Navigator.of(context).popUntil((r) => r.isFirst),
+          onExit: () => nav.maybePop(),
+          onDone: () => nav.popUntil((r) => r.isFirst),
         )),
       ),
     );

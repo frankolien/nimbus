@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:xend/xend.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
-import '../../../onboarding/presentation/widgets/passcode_pad.dart';
-import '../../../onboarding/presentation/widgets/passcode_step.dart';
-import '../../../wallet/data/crypto/seed_cipher.dart';
+import '../../../onboarding/presentation/xend_error_text.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
 import '../../../wallet/presentation/widgets/recovery_phrase_grid.dart';
 import '../widgets/settings_scaffold.dart';
 
-/// Reveals the recovery phrase from Settings, gated by a passcode re-check.
+/// Exports the recovery phrase behind Face ID.
 ///
-/// Two stages: enter the passcode (verified by decrypting the stored seed), then
-/// the 12 words behind a tap-to-reveal blur. The decrypted phrase lives only in
-/// transient state for this screen and is dropped when it closes — it is never
-/// stored in a provider or logged.
+/// The phrase lives only in this screen's state and is dropped when it closes.
+/// It is never stored in a provider or logged.
 class RevealPhraseScreen extends ConsumerStatefulWidget {
   const RevealPhraseScreen({super.key});
 
@@ -25,28 +22,26 @@ class RevealPhraseScreen extends ConsumerStatefulWidget {
 }
 
 class _RevealPhraseScreenState extends ConsumerState<RevealPhraseScreen> {
-  final _padKey = GlobalKey<PasscodePadState>();
   List<String>? _words;
   String? _error;
   bool _busy = false;
 
-  Future<void> _verify(String passcode) async {
+  Future<void> _reveal() async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final phrase =
-          await ref.read(walletVaultProvider).revealRecoveryPhrase(passcode);
+          await ref.read(walletSessionProvider.notifier).revealRecoveryPhrase();
       if (!mounted) return;
-      setState(() => _words = phrase.split(RegExp(r'\s+')));
-    } on InvalidPasscodeException {
-      _padKey.currentState?.shakeAndClear();
-      if (mounted) setState(() => _error = 'Incorrect passcode');
+      setState(() => _words = phrase.trim().split(RegExp(r'\s+')));
+    } on UserCancelledAuth {
+      // The user closed the prompt. Let them try again.
+      if (mounted) setState(() => _error = 'Face ID was cancelled. Try again when ready.');
     } catch (e) {
-      debugPrint('revealRecoveryPhrase failed: $e');
-      _padKey.currentState?.shakeAndClear();
-      if (mounted) setState(() => _error = 'Couldn’t read your wallet');
+      debugPrint('revealRecoveryPhrase failed: ${e.runtimeType}');
+      if (mounted) setState(() => _error = xendErrorText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -55,18 +50,31 @@ class _RevealPhraseScreenState extends ConsumerState<RevealPhraseScreen> {
   @override
   Widget build(BuildContext context) {
     final words = _words;
-    if (words == null) {
-      return PasscodeStep(
-        padKey: _padKey,
-        title: 'Enter your passcode',
-        subtitle: 'Confirm it’s you to reveal your recovery phrase',
-        errorText: _error,
-        busy: _busy,
-        onBack: () => Navigator.of(context).maybePop(),
-        onCompleted: _verify,
-      );
-    }
-    return _PhraseStage(words: words);
+    if (words != null) return _PhraseStage(words: words);
+    return SettingsScaffold(
+      title: 'Recovery phrase',
+      intro: 'Your wallet is already backed up to your iCloud Keychain. Write '
+          'these words down as a second backup, or to move the wallet to a '
+          'device outside your Apple account.',
+      children: [
+        const _WarningBanner(),
+        const SizedBox(height: 22),
+        NbButton(
+          label: _busy ? 'Waiting for Face ID…' : 'Reveal with Face ID',
+          leading: const Icon(Icons.face_outlined, size: 20, color: Colors.white),
+          enabled: !_busy,
+          onTap: _reveal,
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: Text(_error!,
+                textAlign: TextAlign.center,
+                style: NB.font(13, color: NB.text2)),
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -95,7 +103,7 @@ class _PhraseStageState extends State<_PhraseStage> {
     return SettingsScaffold(
       title: 'Recovery phrase',
       children: [
-        _warningBanner(),
+        const _WarningBanner(),
         const SizedBox(height: 16),
         RecoveryPhraseGrid(
           words: widget.words,
@@ -132,8 +140,13 @@ class _PhraseStageState extends State<_PhraseStage> {
       ],
     );
   }
+}
 
-  Widget _warningBanner() {
+class _WarningBanner extends StatelessWidget {
+  const _WarningBanner();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(

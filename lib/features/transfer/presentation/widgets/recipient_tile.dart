@@ -56,7 +56,8 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = seed.trim().isEmpty ? '?' : seed.trim().substring(0, 1).toUpperCase();
+    final initial =
+        seed.trim().isEmpty ? '?' : seed.trim().substring(0, 1).toUpperCase();
     return Container(
       width: 38,
       height: 38,

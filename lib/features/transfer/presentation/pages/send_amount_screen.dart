@@ -7,6 +7,8 @@ import '../../../onboarding/presentation/widgets/nimbus_widgets.dart';
 import '../../../portfolio/presentation/providers/portfolio_provider.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
+import '../../../wallet/presentation/providers/wallet_session.dart';
+import '../../domain/amount_units.dart';
 import '../widgets/numeric_keypad.dart';
 import '../widgets/review_transfer_sheet.dart';
 import '../widgets/transfer_header.dart';
@@ -20,10 +22,16 @@ class SendAmountScreen extends ConsumerStatefulWidget {
     super.key,
     required this.network,
     required this.recipient,
+    required this.recipientAddress,
   });
 
   final Network network;
+
+  /// What the user entered: an address or a `.sol` name.
   final String recipient;
+
+  /// The base58 address [recipient] resolves to.
+  final String recipientAddress;
 
   @override
   ConsumerState<SendAmountScreen> createState() => _SendAmountScreenState();
@@ -36,21 +44,24 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
 
   String get _symbol => widget.network.nativeSymbol;
 
-  // Solana's base fee is 5000 lamports/signature; EVM gas is paid separately.
+  // Solana's base fee is 5000 lamports/signature. Xend's backend usually
+  // sponsors it, but Max keeps it in reserve in case it doesn't.
+  static final _feeLamports = BigInt.from(5000);
   double get _feeNative =>
       widget.network.family == ChainFamily.solana ? 0.000005 : 0;
+  int get _decimals => widget.network.nativeDecimals;
 
   double _balance() {
-    for (final e in ref.read(portfolioProvider).valueOrNull?.entries ??
-        const []) {
+    for (final e
+        in ref.read(portfolioProvider).valueOrNull?.entries ?? const []) {
       if (e.network == widget.network) return e.amount ?? 0;
     }
     return 0;
   }
 
   double? _price() {
-    for (final e in ref.read(portfolioProvider).valueOrNull?.entries ??
-        const []) {
+    for (final e
+        in ref.read(portfolioProvider).valueOrNull?.entries ?? const []) {
       if (e.network == widget.network) return e.usdPrice;
     }
     return null;
@@ -73,20 +84,23 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
     return s > 0 ? s : 0;
   }
 
-  bool get _canReview =>
-      _nativeAmount > 1e-12 && _nativeAmount <= _spendable + 1e-9;
-
-  /// The exact decimal string to broadcast. In asset mode that's the typed
-  /// value; in fiat mode it's the converted amount at the asset's precision.
-  String get _amountString {
-    if (!_fiat) return _input.isEmpty ? '0' : _input;
-    final dec = widget.network.nativeDecimals.clamp(0, 18);
-    return _trimZeros(_nativeAmount.toStringAsFixed(dec));
+  bool get _canReview {
+    final units = _amountUnits;
+    return units != null &&
+        units > BigInt.zero &&
+        _nativeAmount <= _spendable + 1e-9;
   }
 
-  static String _trimZeros(String s) => s.contains('.')
-      ? s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '')
-      : s;
+  /// The exact decimal string to send. In asset mode that's the typed value;
+  /// in fiat mode it's the converted amount, rounded down to the asset's
+  /// precision.
+  String get _amountString {
+    if (!_fiat) return _input.isEmpty ? '0' : _input;
+    return doubleToDecimalString(_nativeAmount, _decimals);
+  }
+
+  /// [_amountString] in base units (lamports), or null if it can't be parsed.
+  BigInt? get _amountUnits => toBaseUnits(_amountString, _decimals);
 
   void _key(String k) {
     setState(() {
@@ -99,6 +113,12 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
         }
       }
       if (_input.replaceAll('.', '').length >= 12) return;
+      // No more fractional digits than the asset has (2 for USD).
+      final dot = _input.indexOf('.');
+      if (dot >= 0 && k != '.') {
+        final maxFrac = _fiat ? 2 : _decimals;
+        if (_input.length - dot - 1 >= maxFrac) return;
+      }
       _input += k;
     });
   }
@@ -110,19 +130,34 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
         }
       });
 
-  void _max() => setState(() {
-        _fiat = false;
-        _input = _trimZeros(
-            _spendable.toStringAsFixed(widget.network.nativeDecimals.clamp(0, 9)));
-      });
+  /// Fills the spendable balance. Reads the exact lamport balance from the
+  /// wallet when it can, so Max never rounds above what's held.
+  Future<void> _max() async {
+    final wallet = ref.read(xendWalletProvider);
+    String value = doubleToDecimalString(_spendable, _decimals);
+    if (wallet != null) {
+      try {
+        final held = (await wallet.balance()).amount - _feeLamports;
+        value =
+            fromBaseUnits(held > BigInt.zero ? held : BigInt.zero, _decimals);
+      } catch (_) {
+        // Fall back to the cached portfolio balance.
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      _fiat = false;
+      _input = value == '0' ? '' : value;
+    });
+  }
 
   void _flip() {
     final p = _price();
     if (p == null || p == 0) return;
     setState(() {
       if (_fiat) {
-        _input = _trimZeros(_nativeAmount
-            .toStringAsFixed(widget.network.nativeDecimals.clamp(0, 9)));
+        _input = doubleToDecimalString(_nativeAmount, _decimals);
         _fiat = false;
       } else {
         _input = _usdAmount.toStringAsFixed(2);
@@ -133,16 +168,18 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
   }
 
   Future<void> _review() async {
-    if (!_canReview) {
+    final units = _amountUnits;
+    if (!_canReview || units == null) {
       setState(() => _error = 'Enter an amount up to your balance.');
       return;
     }
-    final amountLabel = '${Fmt.tokenAmount(_nativeAmount)} $_symbol';
+    final amountLabel = '${fromBaseUnits(units, _decimals)} $_symbol';
     final hash = await showReviewTransferSheet(
       context,
       network: widget.network,
       recipient: widget.recipient,
-      amountString: _amountString,
+      recipientAddress: widget.recipientAddress,
+      amountUnits: units,
       usdValue: _usdAmount,
       feeSol: _feeNative,
     );
@@ -162,6 +199,8 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild when balances refresh; the helpers below read the latest snapshot.
+    ref.watch(portfolioProvider);
     final balance = _balance();
     final hasPrice = (_price() ?? 0) > 0;
     final primary = _fiat
@@ -220,8 +259,8 @@ class _SendAmountScreenState extends ConsumerState<SendAmountScreen> {
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child:
-                  NbButton(label: 'Confirm', enabled: _canReview, onTap: _review),
+              child: NbButton(
+                  label: 'Confirm', enabled: _canReview, onTap: _review),
             ),
             const SizedBox(height: 8),
           ],
