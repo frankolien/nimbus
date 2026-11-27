@@ -37,7 +37,11 @@ void main() {
 
   testWidgets('create, fund, and send SOL through the Nimbus UI', (tester) async {
     // Start from a clean device so onboarding shows.
-    Xend.configure(const XendConfig(backendUrl: 'http://localhost:8080'));
+    // Same backend the app uses. Pass --dart-define=XEND_BACKEND_URL=... and
+    // --dart-define=XEND_API_KEY=... to match .env when testing a deployed backend.
+    const url = String.fromEnvironment('XEND_BACKEND_URL', defaultValue: 'http://localhost:8080');
+    const key = String.fromEnvironment('XEND_API_KEY');
+    Xend.configure(XendConfig(backendUrl: url, apiKey: key.isEmpty ? null : key));
     final old = await XendWallet.load();
     if (old != null) await old.delete(wipeBackup: true);
 
