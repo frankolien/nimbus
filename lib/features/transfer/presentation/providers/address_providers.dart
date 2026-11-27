@@ -17,11 +17,11 @@ class SavedAddressesNotifier extends StateNotifier<List<SavedAddress>> {
 
   Future<void> _load() async => state = await _store.loadSaved();
 
-  Future<void> add(SavedAddress entry) =>
-      _persist([...state.where((e) => !e.sameAs(entry.address, entry.family)), entry]);
+  Future<void> add(SavedAddress entry) => _persist(
+      [...state.where((e) => !e.sameAs(entry.address, entry.family)), entry]);
 
-  Future<void> remove(SavedAddress entry) =>
-      _persist(state.where((e) => !e.sameAs(entry.address, entry.family)).toList());
+  Future<void> remove(SavedAddress entry) => _persist(
+      state.where((e) => !e.sameAs(entry.address, entry.family)).toList());
 
   Future<void> replace(SavedAddress previous, SavedAddress next) => _persist([
         for (final e in state)

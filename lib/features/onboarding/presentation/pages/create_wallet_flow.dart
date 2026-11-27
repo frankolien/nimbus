@@ -1,136 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../wallet/data/crypto/mnemonic_service.dart';
+import '../../../../core/theme/nimbus_theme.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
-import '../widgets/passcode_pad.dart';
-import '../widgets/passcode_step.dart';
-import 'recovery_phrase_screen.dart';
-import 'verify_phrase_screen.dart';
+import '../widgets/nimbus_widgets.dart';
+import '../xend_error_text.dart';
 import 'wallet_ready_screen.dart';
 
-enum _Step { reveal, verify, pinSet, pinConfirm, ready }
-
-/// Orchestrates the "create a new wallet" sequence end to end. The generated
-/// mnemonic lives only in this widget's memory until it's encrypted by the
-/// vault; it is never logged.
+/// Creates a wallet in one step. The key is made in the Secure Enclave and its
+/// seed backed up to iCloud Keychain; no phrase is shown here. It can be
+/// exported later from Settings.
 class CreateWalletFlow extends ConsumerStatefulWidget {
-  const CreateWalletFlow({
-    super.key,
-    required this.onExit,
-    required this.onDone,
-    this.debugMnemonic,
-  });
+  const CreateWalletFlow({super.key, required this.onExit, required this.onDone});
 
-  /// Called when the user backs out past the first step.
+  /// Called when the user backs out.
   final VoidCallback onExit;
 
   /// Called when the user taps "Open wallet" on the success screen.
   final VoidCallback onDone;
-
-  /// Test-only: use this phrase instead of generating one, so a widget test
-  /// can answer the verification quiz deterministically.
-  @visibleForTesting
-  final String? debugMnemonic;
 
   @override
   ConsumerState<CreateWalletFlow> createState() => _CreateWalletFlowState();
 }
 
 class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
-  final _mnemonics = const MnemonicService();
-  // Distinct keys: both pads are briefly mounted together during the
-  // AnimatedSwitcher transition, so a shared key would collide.
-  final _setPadKey = GlobalKey<PasscodePadState>();
-  final _confirmPadKey = GlobalKey<PasscodePadState>();
-
-  late final List<String> _words;
-  _Step _step = _Step.reveal;
-  String? _firstPin;
-  String? _pinError;
-  bool _busy = false;
+  bool _ready = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _words = (widget.debugMnemonic ?? _mnemonics.generate()).split(' ');
+    // Start after the first frame so the provider isn't modified during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _create());
   }
 
-  void _go(_Step s) => setState(() => _step = s);
-
-  Future<void> _submitConfirmPin(String pin) async {
-    if (pin != _firstPin) {
-      setState(() => _pinError = "Codes didn't match — try again");
-      _confirmPadKey.currentState?.shakeAndClear();
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _pinError = null;
-    });
+  Future<void> _create() async {
+    setState(() => _error = null);
     try {
-      await ref
-          .read(walletSessionProvider.notifier)
-          .createWallet(mnemonic: _words.join(' '), passcode: pin);
-      if (mounted) _go(_Step.ready);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _pinError = 'Something went wrong. Try again.');
-        _confirmPadKey.currentState?.shakeAndClear();
-        _firstPin = null;
-        _go(_Step.pinSet);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      await ref.read(walletSessionProvider.notifier).createWallet();
+      if (mounted) setState(() => _ready = true);
+    } catch (e) {
+      debugPrint('createWallet failed: $e');
+      if (mounted) setState(() => _error = xendErrorText(e));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final Widget child = switch (_step) {
-      _Step.reveal => RecoveryPhraseScreen(
-          key: const ValueKey('reveal'),
-          words: _words,
-          onBack: widget.onExit,
-          onContinue: () => _go(_Step.verify),
-        ),
-      _Step.verify => VerifyPhraseScreen(
-          key: const ValueKey('verify'),
-          words: _words,
-          onBack: () => _go(_Step.reveal),
-          onVerified: () => _go(_Step.pinSet),
-        ),
-      _Step.pinSet => PasscodeStep(
-          key: const ValueKey('pinSet'),
-          padKey: _setPadKey,
-          title: 'Create a passcode',
-          subtitle: 'Enter a 6-digit code to unlock Nimbus.',
-          onBack: () => _go(_Step.verify),
-          onCompleted: (pin) {
-            _firstPin = pin;
-            _go(_Step.pinConfirm);
-          },
-        ),
-      _Step.pinConfirm => PasscodeStep(
-          key: const ValueKey('pinConfirm'),
-          padKey: _confirmPadKey,
-          title: 'Confirm your passcode',
-          subtitle: 'Re-enter your code to confirm.',
-          errorText: _pinError,
-          busy: _busy,
-          onBack: () {
-            _firstPin = null;
-            _pinError = null;
-            _go(_Step.pinSet);
-          },
-          onCompleted: _submitConfirmPin,
-        ),
-      _Step.ready => WalletReadyScreen(
-          key: const ValueKey('ready'),
-          account: ref.read(walletSessionProvider).accounts.first,
-          onOpen: widget.onDone,
-        ),
-    };
+    final account = ref.watch(walletSessionProvider).activeAccount;
+    final Widget child = _ready && account != null
+        ? WalletReadyScreen(
+            key: const ValueKey('ready'),
+            account: account,
+            onOpen: widget.onDone,
+          )
+        : _Creating(
+            key: const ValueKey('creating'),
+            error: _error,
+            onBack: widget.onExit,
+            onRetry: _create,
+          );
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 360),
@@ -144,6 +73,75 @@ class _CreateWalletFlowState extends ConsumerState<CreateWalletFlow> {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+/// Progress while the key is created, or the error with a retry.
+class _Creating extends StatelessWidget {
+  const _Creating({
+    super.key,
+    required this.error,
+    required this.onBack,
+    required this.onRetry,
+  });
+
+  final String? error;
+  final VoidCallback onBack;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final failed = error != null;
+    return Scaffold(
+      backgroundColor: NB.bg,
+      body: Stack(
+        children: [
+          const Positioned(
+            top: 40,
+            left: 0,
+            right: 0,
+            child: Center(child: AmbientGlow()),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 30),
+              child: Column(
+                children: [
+                  NbHeader(onBack: onBack, showHelp: false),
+                  const Spacer(),
+                  const NimbusLogo(size: 72),
+                  const SizedBox(height: 28),
+                  Text(
+                    failed ? 'Couldn’t create your wallet' : 'Creating your wallet',
+                    textAlign: TextAlign.center,
+                    style: NB.font(26, weight: FontWeight.w800, letterSpacing: -0.6),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    error ??
+                        'Your key is made on this device and backed up to your '
+                            'iCloud Keychain.',
+                    textAlign: TextAlign.center,
+                    style: NB.font(14.5,
+                        color: failed ? NB.red : NB.text2, height: 1.5),
+                  ),
+                  const SizedBox(height: 28),
+                  if (!failed)
+                    const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: NB.orange),
+                    ),
+                  const Spacer(),
+                  if (failed) NbButton(label: 'Try again', onTap: onRetry),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

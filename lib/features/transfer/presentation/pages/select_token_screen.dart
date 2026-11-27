@@ -6,16 +6,20 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/coin_logo.dart';
 import '../../../../core/widgets/search_field.dart';
 import '../../../portfolio/presentation/providers/portfolio_provider.dart';
+import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 
-/// The native assets the wallet can currently send. SPL/ERC-20 token balances
-/// join this list once token support lands.
+/// Assets listed in the picker. Only Solana can send today (through Xend); the
+/// EVM rows show as coming soon.
 const sendableNetworks = [
+  Network.solana,
   Network.ethereum,
   Network.polygon,
   Network.base,
-  Network.solana,
 ];
+
+/// Whether Nimbus can send on [network] right now.
+bool canSendOn(Network network) => network.family == ChainFamily.solana;
 
 /// Bottom sheet to pick which asset to send. Returns the chosen [Network], or
 /// null if dismissed.
@@ -73,7 +77,8 @@ class _SelectTokenSheetState extends ConsumerState<_SelectTokenSheet> {
         .toList();
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.82,
@@ -124,6 +129,7 @@ class _SelectTokenSheetState extends ConsumerState<_SelectTokenSheet> {
                     network: n,
                     balance: balanceOf(n),
                     usdPrice: priceOf(n),
+                    enabled: canSendOn(n),
                     onTap: () => Navigator.of(context).pop(n),
                   );
                 },
@@ -141,12 +147,14 @@ class _TokenRow extends StatelessWidget {
     required this.network,
     required this.balance,
     required this.usdPrice,
+    required this.enabled,
     required this.onTap,
   });
 
   final Network network;
   final double balance;
   final double? usdPrice;
+  final bool enabled;
   final VoidCallback onTap;
 
   @override
@@ -154,34 +162,42 @@ class _TokenRow extends StatelessWidget {
     final usd = usdPrice == null ? null : balance * usdPrice!;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: NB.surface2,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            CoinLogo(network: network, size: 44),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(network.displayName,
-                      style: NB.font(15.5, weight: FontWeight.w700)),
-                  const SizedBox(height: 3),
-                  Text('${Fmt.tokenAmount(balance)} ${network.nativeSymbol}',
-                      style: NB.font(12.5, color: NB.text2)),
-                ],
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: NB.surface2,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              CoinLogo(network: network, size: 44),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(network.displayName,
+                        style: NB.font(15.5, weight: FontWeight.w700)),
+                    const SizedBox(height: 3),
+                    Text('${Fmt.tokenAmount(balance)} ${network.nativeSymbol}',
+                        style: NB.font(12.5, color: NB.text2)),
+                  ],
+                ),
               ),
-            ),
-            if (usd != null)
-              Text(Fmt.usd(usd),
-                  style: NB.font(14, weight: FontWeight.w700, color: NB.text)),
-          ],
+              if (!enabled)
+                Text('Coming soon',
+                    style:
+                        NB.font(12.5, weight: FontWeight.w700, color: NB.text3))
+              else if (usd != null)
+                Text(Fmt.usd(usd),
+                    style:
+                        NB.font(14, weight: FontWeight.w700, color: NB.text)),
+            ],
+          ),
         ),
       ),
     );

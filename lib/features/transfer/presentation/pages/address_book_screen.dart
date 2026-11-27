@@ -46,7 +46,8 @@ class AddressBookScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text('Saved', style: NB.font(16, weight: FontWeight.w800)),
+                      Text('Saved',
+                          style: NB.font(16, weight: FontWeight.w800)),
                       const Spacer(),
                       GestureDetector(
                         onTap: () =>

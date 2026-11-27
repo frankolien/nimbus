@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:nimbus/core/widgets/coin_logo.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
-import '../../../wallet/data/crypto/key_derivation_service.dart';
+import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/domain/entities/wallet_account.dart';
 import '../widgets/nimbus_widgets.dart';
 
-/// Success screen after a wallet is created or imported — celebrates and shows
-/// the real derived address for each chain.
+/// Success screen after a wallet is created or imported. Shows the Solana
+/// address and where the backup lives.
 class WalletReadyScreen extends StatelessWidget {
   const WalletReadyScreen({
     super.key,
@@ -24,6 +24,7 @@ class WalletReadyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final address = account.account(ChainFamily.solana)?.address;
     return Scaffold(
       backgroundColor: NB.bg,
       body: Stack(
@@ -65,10 +66,12 @@ class WalletReadyScreen extends StatelessWidget {
                   Text('Your wallet is ready',
                       style: NB.font(30, weight: FontWeight.w800, letterSpacing: -0.8)),
                   const SizedBox(height: 10),
-                  Text('Welcome to self-custody, done right.',
+                  Text('Face ID approves every transaction.',
                       style: NB.font(15, color: NB.text2)),
                   const SizedBox(height: 28),
-                  _addressCard(),
+                  if (address != null) _addressCard(address),
+                  const SizedBox(height: 12),
+                  _backupNote(),
                   const Spacer(),
                   NbButton(label: 'Open wallet', onTap: onOpen),
                 ],
@@ -80,40 +83,53 @@ class WalletReadyScreen extends StatelessWidget {
     );
   }
 
-  Widget _addressCard() {
+  Widget _addressCard(String address) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
       decoration: BoxDecoration(
         color: NB.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: NB.border),
       ),
-      child: Column(
-        children: [
-          for (final family in KeyDerivationService.supportedFamilies)
-            if (account.account(family) != null)
-              _addressRow(
-                Network.forFamily(family).first,
-                _short(account.account(family)!.address),
-              ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            const CoinLogo(network: Network.solana, size: 34),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(Network.solana.displayName,
+                  style: NB.font(14.5, weight: FontWeight.w700)),
+            ),
+            Text(_short(address), style: NB.font(13, color: NB.text2)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _addressRow(Network network, String shortAddr) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+  Widget _backupNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: NB.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: NB.border),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CoinLogo(network: network, size: 34),
-          const SizedBox(width: 12),
+          const Icon(Icons.cloud_done_outlined, size: 20, color: NB.green),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(network.displayName,
-                style: NB.font(14.5, weight: FontWeight.w700)),
+            child: Text(
+              'Backed up to your iCloud Keychain. You can also export your '
+              'recovery phrase anytime in Settings.',
+              style: NB.font(13, color: NB.text2, height: 1.45),
+            ),
           ),
-          Text(shortAddr, style: NB.font(13, color: NB.text2)),
         ],
       ),
     );

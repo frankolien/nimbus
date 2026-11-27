@@ -12,8 +12,9 @@ import '../../../wallet/domain/entities/network.dart';
 import '../../domain/activity_item.dart';
 import '../providers/activity_provider.dart';
 
-/// Transaction history (native SOL). Used as the History tab and pushable as a
-/// standalone screen. Groups entries by day and links each to the explorer.
+/// Transaction history from the Xend wallet. Used as the History tab and
+/// pushable as a standalone screen. Groups entries by day, links each to the
+/// explorer, and loads older pages near the end of the list.
 class ActivityScreen extends ConsumerWidget {
   const ActivityScreen({super.key});
 
@@ -37,10 +38,18 @@ class ActivityScreen extends ConsumerWidget {
                         color: NB.orange,
                         backgroundColor: NB.surface,
                         onRefresh: () => ref.refresh(activityProvider.future),
-                        child: ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                          children: _sections(context, ref, items),
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (n) {
+                            if (n.metrics.extentAfter < 300) {
+                              ref.read(activityProvider.notifier).loadMore();
+                            }
+                            return false;
+                          },
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                            children: _sections(context, ref, items),
+                          ),
                         ),
                       ),
               ),
@@ -135,6 +144,7 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final received = item.isReceived;
+    final title = item.failed ? 'Failed' : (received ? 'Received' : 'Sent');
     final counterparty =
         item.counterparty.isEmpty ? 'Unknown' : Fmt.address(item.counterparty);
     return GestureDetector(
@@ -150,8 +160,10 @@ class _ActivityRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(received ? 'Received' : 'Sent',
-                      style: NB.font(15.5, weight: FontWeight.w700)),
+                  Text(title,
+                      style: NB.font(15.5,
+                          weight: FontWeight.w700,
+                          color: item.failed ? NB.red : NB.text)),
                   const SizedBox(height: 3),
                   Text('${received ? 'From' : 'To'}:  $counterparty',
                       style: NB.font(13, color: NB.text2)),
@@ -159,10 +171,12 @@ class _ActivityRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${received ? '+' : '-'}${Fmt.tokenAmount(item.amountSol)} SOL',
+              '${received ? '+' : '-'}${Fmt.tokenAmount(item.amount)} ${item.symbol}',
               style: NB.font(15,
                   weight: FontWeight.w700,
-                  color: received ? NB.green : NB.text),
+                  color: item.failed
+                      ? NB.text3
+                      : (received ? NB.green : NB.text)),
             ),
           ],
         ),
@@ -187,7 +201,7 @@ class _EmptyView extends StatelessWidget {
             Text('No activity yet',
                 style: NB.font(16, weight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text('Your SOL transactions will show up here.',
+            Text('Transfers you send will show up here.',
                 textAlign: TextAlign.center,
                 style: NB.font(13.5, color: NB.text2)),
           ],

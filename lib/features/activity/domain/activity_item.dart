@@ -2,25 +2,31 @@
 /// account.
 enum ActivityKind { sent, received }
 
-/// One native-SOL movement in the account's history, parsed from a confirmed
-/// transaction. Token-only, fee-only, and failed transactions are filtered out
-/// upstream, so every item represents a real SOL transfer.
+/// One transfer in the account's history.
 class ActivityItem {
   const ActivityItem({
     required this.kind,
     required this.counterparty,
-    required this.amountSol,
+    required this.amount,
+    required this.symbol,
     required this.signature,
     required this.timestamp,
+    this.failed = false,
   });
 
   final ActivityKind kind;
 
-  /// The other party's address ('' if it couldn't be resolved).
+  /// The other party's address ('' if unknown).
   final String counterparty;
-  final double amountSol;
+
+  /// Amount in whole units of [symbol].
+  final double amount;
+  final String symbol;
   final String signature;
   final DateTime? timestamp;
+
+  /// True when the transaction didn't land on chain.
+  final bool failed;
 
   bool get isReceived => kind == ActivityKind.received;
 }

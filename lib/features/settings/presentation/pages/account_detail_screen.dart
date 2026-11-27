@@ -13,9 +13,9 @@ import '../widgets/account_avatar.dart';
 import '../widgets/settings_scaffold.dart';
 import '../widgets/settings_section.dart';
 
-/// Account detail / edit: rename the account, copy its address on each chain,
-/// and remove it. Resolves the account live from the session by [index] so it
-/// reflects renames and disappears cleanly if removed elsewhere.
+/// Account detail: rename the account and copy its address. Resolves the
+/// account live from the session by [index] so it reflects renames and closes
+/// if the wallet is removed.
 class AccountDetailScreen extends ConsumerStatefulWidget {
   const AccountDetailScreen({super.key, required this.index});
   final int index;
@@ -69,21 +69,6 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
     }
   }
 
-  Future<void> _remove() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => const _RemoveDialog(),
-    );
-    if (confirmed != true) return;
-    try {
-      await ref.read(walletSessionProvider.notifier).removeAccount(widget.index);
-      if (mounted) Navigator.of(context).maybePop();
-    } catch (e) {
-      debugPrint('removeAccount failed: $e');
-      if (mounted) _toast('Couldn’t remove account');
-    }
-  }
-
   void _copy(String label, String address) {
     Clipboard.setData(ClipboardData(text: address));
     _toast('$label address copied');
@@ -105,7 +90,7 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
     final session = ref.watch(walletSessionProvider);
     final account = _find(session.accounts);
 
-    // Removed elsewhere — leave this screen.
+    // Wallet removed, leave this screen.
     if (account == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).maybePop();
@@ -120,7 +105,6 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
     }
 
     final families = _families(account);
-    final canRemove = session.accounts.length > 1;
 
     return SettingsScaffold(
       title: 'Account',
@@ -147,10 +131,6 @@ class _AccountDetailScreenState extends ConsumerState<AccountDetailScreen> {
               ),
           ],
         ),
-        if (canRemove) ...[
-          const SizedBox(height: 22),
-          _RemoveButton(onTap: _remove),
-        ],
       ],
     );
   }
@@ -254,65 +234,6 @@ class _AddressRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _RemoveButton extends StatelessWidget {
-  const _RemoveButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 54,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: NB.red.withValues(alpha: 0.5), width: 1.5),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.delete_outline, size: 18, color: NB.red),
-            const SizedBox(width: 8),
-            Text('Remove account',
-                style: NB.font(16, weight: FontWeight.w700, color: NB.red)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RemoveDialog extends StatelessWidget {
-  const _RemoveDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: NB.surface,
-      title: Text('Remove account?',
-          style: NB.font(18, weight: FontWeight.w800, color: NB.red)),
-      content: Text(
-        'This hides the account on this device. It stays recoverable from your '
-        'recovery phrase, and you can re-add it later.',
-        style: NB.font(14, color: NB.text2, height: 1.5),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel', style: NB.font(14, color: NB.text2)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text('Remove',
-              style: NB.font(14, weight: FontWeight.w700, color: NB.red)),
-        ),
-      ],
     );
   }
 }

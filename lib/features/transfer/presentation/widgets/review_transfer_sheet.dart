@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:xend/xend.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../portfolio/presentation/providers/network_cluster_provider.dart';
 import '../../../portfolio/presentation/providers/portfolio_provider.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
-import '../../data/evm_send_service.dart';
-import '../../data/solana_send_service.dart';
+import '../../domain/amount_units.dart';
 import '../providers/address_providers.dart';
 import 'slide_to_confirm.dart';
 
-/// Review + confirm a transfer. Slides to sign and broadcast; returns the tx
-/// hash on success (and records the recipient as recent), or null if dismissed.
+/// Review + confirm a transfer. Sliding is the user's approval; Xend then
+/// checks the transaction, we check its preview against this sheet, and Face ID
+/// signs it. Returns the transaction signature on success (and records the
+/// recipient as recent), or null if dismissed.
 Future<String?> showReviewTransferSheet(
   BuildContext context, {
   required Network network,
   required String recipient,
-  required String amountString,
+  required String recipientAddress,
+  required BigInt amountUnits,
   required double usdValue,
   required double feeSol,
+  Asset? asset,
 }) {
   return showModalBottomSheet<String>(
     context: context,
@@ -33,9 +36,11 @@ Future<String?> showReviewTransferSheet(
     builder: (_) => _ReviewSheet(
       network: network,
       recipient: recipient,
-      amountString: amountString,
+      recipientAddress: recipientAddress,
+      amountUnits: amountUnits,
       usdValue: usdValue,
       feeSol: feeSol,
+      asset: asset,
     ),
   );
 }
@@ -44,67 +49,80 @@ class _ReviewSheet extends ConsumerStatefulWidget {
   const _ReviewSheet({
     required this.network,
     required this.recipient,
-    required this.amountString,
+    required this.recipientAddress,
+    required this.amountUnits,
     required this.usdValue,
     required this.feeSol,
+    this.asset,
   });
 
   final Network network;
+
+  /// What the user entered: an address or a `.sol` name.
   final String recipient;
-  final String amountString;
+
+  /// The address shown on this sheet, which the transaction must pay.
+  final String recipientAddress;
+  final BigInt amountUnits;
   final double usdValue;
   final double feeSol;
+
+  /// An SPL token, or null for native SOL.
+  final Asset? asset;
 
   @override
   ConsumerState<_ReviewSheet> createState() => _ReviewSheetState();
 }
 
 class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
-  final _solana = SolanaSendService();
-  final _evm = EvmSendService();
   bool _sending = false;
   String? _error;
 
+  // Set when our own preview check declines, so the resulting
+  // UserCancelledAuth is reported as a block rather than a cancel.
+  bool _previewMismatch = false;
+
   bool get _isSolana => widget.network.family == ChainFamily.solana;
-  double get _amount => double.tryParse(widget.amountString) ?? 0;
-  String get _symbol => widget.network.nativeSymbol;
+  int get _decimals => widget.asset?.decimals ?? widget.network.nativeDecimals;
+  String get _symbol => widget.asset?.symbol ?? widget.network.nativeSymbol;
+  String get _amountLabel => fromBaseUnits(widget.amountUnits, _decimals);
+  bool get _isNative => widget.asset?.mint == null;
+
+  /// Approve only what this sheet showed: same recipient, amount and token.
+  Future<bool> _checkPreview(TransferPreview p) async {
+    final ok = p.recipient == widget.recipientAddress &&
+        p.amount == widget.amountUnits &&
+        p.mint == widget.asset?.mint;
+    if (!ok) _previewMismatch = true;
+    return ok;
+  }
 
   Future<void> _confirm() async {
+    final wallet = ref.read(xendWalletProvider);
+    if (!_isSolana || wallet == null) {
+      setState(() => _error = _isSolana
+          ? 'Wallet isn\'t ready yet. Try again in a moment.'
+          : '${widget.network.displayName} sending is coming soon.');
+      return;
+    }
     setState(() {
       _sending = true;
       _error = null;
+      _previewMismatch = false;
     });
     try {
-      final index = ref.read(walletSessionProvider).activeAccountIndex;
-      final cluster = ref.read(networkClusterProvider);
-      final vault = ref.read(walletVaultProvider);
-
-      final String hash;
-      if (_isSolana) {
-        final signer = vault.signingKey(ChainFamily.solana, index);
-        hash = await _solana.sendNative(
-          fromAddress: signer.address,
-          privateKeyBytes: signer.privateKeyBytes,
-          toAddress: widget.recipient,
-          amountSol: widget.amountString,
-          cluster: cluster,
-        );
-      } else {
-        final signer = vault.signingKey(ChainFamily.evm, index);
-        hash = await _evm.sendNative(
-          network: widget.network,
-          privateKeyHex: signer.privateKeyHex,
-          toAddress: widget.recipient,
-          amountEther: widget.amountString,
-          cluster: cluster,
-        );
-      }
+      final handle = await wallet.send(
+        to: widget.recipient,
+        amount: widget.amountUnits,
+        asset: _isNative ? null : widget.asset,
+        confirm: _checkPreview,
+      );
 
       await ref
           .read(recentRecipientsProvider.notifier)
           .record(widget.recipient, widget.network.family);
       ref.read(portfolioProvider.notifier).refresh();
-      if (mounted) Navigator.of(context).pop(hash);
+      if (mounted) Navigator.of(context).pop(handle.id);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -116,27 +134,35 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
   }
 
   String _humanize(Object e) {
-    if (e is SolanaRpcException) {
-      final m = e.message.toLowerCase();
-      if (m.contains('insufficient') || m.contains('debit')) {
-        return 'Insufficient SOL for amount + fees.';
-      }
-      return e.message;
+    if (_previewMismatch || e is TransactionMismatch) {
+      return 'Blocked: the transaction didn\'t match what you approved. '
+          'Nothing was sent.';
     }
-    if (e.toString().contains('insufficient funds')) {
-      return 'Insufficient funds for amount + gas fees.';
-    }
-    return 'Could not send. Check the amount and try again.';
+    return switch (e) {
+      UserCancelledAuth() => 'Face ID was cancelled. Nothing was sent.',
+      InsufficientFunds() => 'Not enough $_symbol to cover this transfer.',
+      InvalidRecipient() => 'That recipient isn\'t a valid Solana address.',
+      NetworkError() ||
+      RateLimited() =>
+        'Network problem. Check your connection and try again.',
+      BlockhashExpired() => 'The transfer took too long. Please try again.',
+      ChainRejected() => 'The network rejected this transfer.',
+      KeyInvalidated() =>
+        'Face ID changed on this device, so the signing key was reset. '
+            'Reopen Nimbus to restore it, then try again.',
+      SecureElementError() =>
+        'Face ID isn\'t available. Check your device settings.',
+      XendError(:final message) => 'Could not send: $message',
+      _ => 'Could not send. Check the amount and try again.',
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final cluster = ref.watch(networkClusterProvider);
-    final feeLabel =
-        _isSolana ? '${Fmt.tokenAmount(widget.feeSol)} SOL' : 'Gas at send';
-    final totalLabel = _isSolana
-        ? '${Fmt.tokenAmount(_amount + widget.feeSol)} SOL'
-        : '${Fmt.tokenAmount(_amount)} $_symbol + gas';
+    // Xend's backend usually sponsors the fee; we can't know until it builds
+    // the transaction, so show it as an upper bound.
+    final feeLabel = 'Up to ${Fmt.tokenAmount(widget.feeSol)} SOL';
+    final isName = widget.recipient != widget.recipientAddress;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
@@ -161,8 +187,9 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
               children: [
                 Text('You are sending', style: NB.font(13.5, color: NB.text2)),
                 const SizedBox(height: 8),
-                Text('${Fmt.tokenAmount(_amount)} $_symbol',
-                    style: NB.font(30, weight: FontWeight.w800, letterSpacing: -0.5)),
+                Text('$_amountLabel $_symbol',
+                    style: NB.font(30,
+                        weight: FontWeight.w800, letterSpacing: -0.5)),
                 const SizedBox(height: 4),
                 Text(Fmt.usd(widget.usdValue),
                     style: NB.font(14.5, color: NB.text2)),
@@ -178,13 +205,18 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
             ),
             child: Column(
               children: [
-                _row('Recipient', Fmt.address(widget.recipient)),
+                if (isName) ...[
+                  _row('Recipient', widget.recipient),
+                  _divider(),
+                  _row('Address', Fmt.address(widget.recipientAddress)),
+                ] else
+                  _row('Recipient', Fmt.address(widget.recipientAddress)),
                 _divider(),
-                _row('Network', '${widget.network.displayName} · ${cluster.label}'),
+                _row('Network', '${widget.network.displayName} · Devnet'),
                 _divider(),
                 _row('Network fee', feeLabel),
                 _divider(),
-                _row('Total', totalLabel, strong: true),
+                _row('Amount', '$_amountLabel $_symbol', strong: true),
               ],
             ),
           ),

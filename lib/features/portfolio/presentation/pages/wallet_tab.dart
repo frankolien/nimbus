@@ -20,7 +20,7 @@ import '../widgets/home_top_bar.dart';
 import '../widgets/portfolio_total.dart';
 import '../widgets/wallet_actions.dart';
 
-/// The realtime multi-chain wallet tab. Composes presentational widgets and
+/// The wallet tab. Composes presentational widgets and
 /// wires them to the session + portfolio providers; holds no layout details of
 /// its own beyond ordering.
 class WalletTab extends ConsumerWidget {
@@ -64,7 +64,7 @@ class WalletTab extends ConsumerWidget {
               onToggleBalance: () =>
                   ref.read(balanceHiddenProvider.notifier).toggle(),
             ),
-            //const DevnetBar(),
+            const DevnetBar(),
             const SizedBox(height: 17),
             PortfolioTotalHeader(
               totalUsd: portfolio?.totalUsd,

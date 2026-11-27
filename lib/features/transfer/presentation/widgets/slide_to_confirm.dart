@@ -72,8 +72,9 @@ class _SlideToConfirmState extends State<SlideToConfirm> {
               left: _pad + (widget.busy ? maxDx : _dx),
               top: _pad,
               child: GestureDetector(
-                onHorizontalDragStart:
-                    widget.busy ? null : (_) => setState(() => _dragging = true),
+                onHorizontalDragStart: widget.busy
+                    ? null
+                    : (_) => setState(() => _dragging = true),
                 onHorizontalDragUpdate: widget.busy
                     ? null
                     : (d) => setState(

@@ -1,14 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:xend/xend.dart';
 
 import '../../../../core/theme/nimbus_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../portfolio/presentation/providers/network_cluster_provider.dart';
 import '../../../wallet/domain/entities/chain_family.dart';
 import '../../../wallet/domain/entities/network.dart';
-import '../../data/evm_send_service.dart';
-import '../../data/solana_send_service.dart';
+import '../../domain/solana_recipient.dart';
 import '../providers/address_providers.dart';
 import '../widgets/recipient_tile.dart';
 import '../widgets/save_address_sheet.dart';
@@ -16,9 +17,9 @@ import '../widgets/transfer_header.dart';
 import 'address_book_screen.dart';
 import 'send_amount_screen.dart';
 
-/// Step 1 of the send flow: choose the recipient. Paste or type an address,
-/// or tap a recent / saved one. The send targets the active cluster, so the
-/// same flow works on Mainnet and Devnet/Testnet.
+/// Step 1 of the send flow: choose the recipient. Paste or type a Solana
+/// address or a `.sol` name, or tap a recent / saved one. Sending goes through
+/// Xend, which is Solana-only for now, so other networks show "coming soon".
 class SendRecipientScreen extends ConsumerStatefulWidget {
   const SendRecipientScreen({super.key, required this.network});
 
@@ -31,19 +32,76 @@ class SendRecipientScreen extends ConsumerStatefulWidget {
 
 class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
   final _to = TextEditingController();
+  Timer? _debounce;
+
+  // Name lookup state for `.sol` input. [_resolvedFor] is the name the result
+  // belongs to, so a stale lookup never unlocks a newer input.
+  String? _resolvedFor;
+  String? _resolved;
+  bool _resolving = false;
+  String? _resolveError;
 
   ChainFamily get _family => widget.network.family;
+  bool get _supported => _family == ChainFamily.solana;
 
-  bool _isValid(String a) => _family == ChainFamily.solana
-      ? SolanaSendService.isValidAddress(a)
-      : EvmSendService.isValidAddress(a);
+  // Names are case-insensitive; send them lowercased.
+  String get _input {
+    final t = _to.text.trim();
+    return isSolName(t) ? t.toLowerCase() : t;
+  }
+  bool get _isName => isSolName(_input);
 
-  bool get _canContinue => _isValid(_to.text.trim());
+  bool get _canContinue {
+    if (isSolanaAddress(_input)) return true;
+    return _isName && _resolvedFor == _input && _resolved != null;
+  }
+
+  /// The address the review sheet should expect in the built transaction.
+  String get _expectedAddress => _isName ? _resolved! : _input;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _to.dispose();
     super.dispose();
+  }
+
+  void _onChanged() {
+    setState(() {});
+    _debounce?.cancel();
+    if (!_isName) return;
+    final name = _input;
+    if (name == _resolvedFor) return;
+    setState(() {
+      _resolving = true;
+      _resolveError = null;
+    });
+    _debounce = Timer(const Duration(milliseconds: 400), () => _resolve(name));
+  }
+
+  Future<void> _resolve(String name) async {
+    String? address;
+    String? error;
+    try {
+      address = await XendWallet.resolveName(name);
+      if (!isSolanaAddress(address)) {
+        address = null;
+        error = 'That name doesn\'t point to a valid address.';
+      }
+    } on InvalidRecipient {
+      error = 'No wallet is registered to $name.';
+    } on XendError {
+      error = 'Couldn\'t look up $name. Check your connection.';
+    } catch (_) {
+      error = 'Couldn\'t look up $name.';
+    }
+    if (!mounted || name != _input) return;
+    setState(() {
+      _resolving = false;
+      _resolvedFor = name;
+      _resolved = address;
+      _resolveError = error;
+    });
   }
 
   Future<void> _paste() async {
@@ -51,13 +109,13 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
     final text = data?.text?.trim();
     if (text != null && text.isNotEmpty) {
       _to.text = text;
-      setState(() {});
+      _onChanged();
     }
   }
 
   void _select(String address) {
     _to.text = address;
-    setState(() {});
+    _onChanged();
   }
 
   void _continue() {
@@ -65,20 +123,23 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => SendAmountScreen(
         network: widget.network,
-        recipient: _to.text.trim(),
+        recipient: _input,
+        recipientAddress: _expectedAddress,
       ),
     ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final cluster = ref.watch(networkClusterProvider);
+    if (!_supported) return _ComingSoon(network: widget.network);
     final recents = ref
         .watch(recentRecipientsProvider)
         .where((r) => r.family == _family)
         .toList();
-    final saved =
-        ref.watch(savedAddressesProvider).where((s) => s.family == _family).toList();
+    final saved = ref
+        .watch(savedAddressesProvider)
+        .where((s) => s.family == _family)
+        .toList();
 
     String? savedLabel(String address) {
       for (final s in saved) {
@@ -94,7 +155,7 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
           children: [
             TransferHeader(
               title: 'Send ${widget.network.nativeSymbol}',
-              trailing: cluster.isMainnet ? null : _ClusterDot(label: cluster.label),
+              trailing: const _ClusterDot(label: 'Devnet'),
             ),
             Expanded(
               child: ListView(
@@ -104,12 +165,15 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
                   if (_canContinue) ...[
                     const SizedBox(height: 14),
                     _addressFound(),
+                  ] else if (_isName &&
+                      (_resolving || _resolveError != null)) ...[
+                    const SizedBox(height: 14),
+                    _nameStatus(),
                   ],
                   if (recents.isNotEmpty) ...[
                     const SizedBox(height: 26),
                     _sectionHead('Recent transfers',
-                        action: 'View all',
-                        onAction: () => _openBook()),
+                        action: 'View all', onAction: () => _openBook()),
                     for (final r in recents.take(5))
                       RecipientTile(
                         title: savedLabel(r.address) ?? Fmt.address(r.address),
@@ -167,11 +231,11 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
               controller: _to,
               autocorrect: false,
               enableSuggestions: false,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => _onChanged(),
               style: NB.font(15, color: NB.text),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Recipient address',
+                hintText: 'Address or .sol name',
                 hintStyle: NB.font(15, color: NB.text3),
               ),
             ),
@@ -180,11 +244,15 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
             TextButton(
               onPressed: _paste,
               child: Text('Paste',
-                  style: NB.font(14, weight: FontWeight.w700, color: NB.orange)),
+                  style:
+                      NB.font(14, weight: FontWeight.w700, color: NB.orange)),
             )
           else
             IconButton(
-              onPressed: () => setState(_to.clear),
+              onPressed: () {
+                _to.clear();
+                _onChanged();
+              },
               icon: const Icon(Icons.close, size: 18, color: NB.text3),
             ),
         ],
@@ -207,10 +275,10 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Address found',
+                Text(_isName ? _input : 'Address found',
                     style: NB.font(14, weight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text(Fmt.address(_to.text.trim()),
+                Text(Fmt.address(_expectedAddress),
                     style: NB.font(12.5, color: NB.text2)),
               ],
             ),
@@ -221,8 +289,37 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
             behavior: HitTestBehavior.opaque,
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(Icons.bookmark_add_outlined, size: 20, color: NB.text2),
+              child:
+                  Icon(Icons.bookmark_add_outlined, size: 20, color: NB.text2),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _nameStatus() {
+    final error = _resolveError;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: (error == null ? NB.surface2 : NB.red.withValues(alpha: 0.10)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          if (error == null)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: NB.text2),
+            )
+          else
+            const Icon(Icons.error_outline, size: 20, color: NB.red),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(error ?? 'Looking up $_input…',
+                style: NB.font(13.5, color: error == null ? NB.text2 : NB.red)),
           ),
         ],
       ),
@@ -245,7 +342,8 @@ class _SendRecipientScreenState extends ConsumerState<SendRecipientScreen> {
             onTap: onAction,
             behavior: HitTestBehavior.opaque,
             child: Text(action,
-                style: NB.font(13.5, weight: FontWeight.w700, color: NB.orange)),
+                style:
+                    NB.font(13.5, weight: FontWeight.w700, color: NB.orange)),
           ),
         ],
       ),
@@ -286,6 +384,41 @@ class _ClusterDot extends StatelessWidget {
       ),
       child: Text(label,
           style: NB.font(11.5, weight: FontWeight.w700, color: NB.orangeHi)),
+    );
+  }
+}
+
+/// Shown for networks Xend can't send on yet.
+class _ComingSoon extends StatelessWidget {
+  const _ComingSoon({required this.network});
+  final Network network;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: Column(
+          children: [
+            TransferHeader(title: 'Send ${network.nativeSymbol}'),
+            const Spacer(),
+            const Icon(Icons.schedule, size: 44, color: NB.text3),
+            const SizedBox(height: 16),
+            Text('${network.displayName} sending is coming soon',
+                style: NB.font(17, weight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'For now you can send SOL on Solana.',
+                textAlign: TextAlign.center,
+                style: NB.font(14, color: NB.text2, height: 1.5),
+              ),
+            ),
+            const Spacer(flex: 2),
+          ],
+        ),
+      ),
     );
   }
 }

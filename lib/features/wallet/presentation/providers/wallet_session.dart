@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:xend/xend.dart';
 
-import '../../data/storage/seed_vault.dart';
-import '../../data/wallet_vault.dart';
+import '../../domain/entities/blockchain_account.dart';
+import '../../domain/entities/chain_family.dart';
 import '../../domain/entities/network.dart';
 import '../../domain/entities/wallet_account.dart';
 
@@ -11,13 +13,14 @@ enum VaultStatus {
   /// Not yet determined (initial / loading).
   unknown,
 
-  /// No wallet has been created or imported on this device.
+  /// No wallet on this device and none to recover.
   noWallet,
 
-  /// A wallet exists but the session is locked (phrase not in memory).
+  /// Kept for routing compatibility. Xend wallets are never "locked": each signature
+  /// is gated by Face ID instead of a session passcode.
   locked,
 
-  /// A wallet exists and is unlocked for this session.
+  /// A wallet is loaded.
   unlocked,
 }
 
@@ -25,6 +28,7 @@ enum VaultStatus {
 class WalletSessionState {
   const WalletSessionState({
     this.status = VaultStatus.unknown,
+    this.wallet,
     this.accounts = const [],
     this.activeAccountIndex = 0,
     this.activeNetwork = Network.solana,
@@ -33,25 +37,22 @@ class WalletSessionState {
   });
 
   final VaultStatus status;
+
+  /// The Xend wallet. Keys live in the Secure Enclave; this holds only the address.
+  final XendWallet? wallet;
   final List<WalletAccount> accounts;
   final int activeAccountIndex;
   final Network activeNetwork;
   final bool isBusy;
   final String? error;
 
-  /// The active account, or null when no wallet exists yet.
-  WalletAccount? get activeAccount {
-    if (accounts.isEmpty) return null;
-    for (final a in accounts) {
-      if (a.index == activeAccountIndex) return a;
-    }
-    return accounts.first;
-  }
+  WalletAccount? get activeAccount => accounts.isEmpty ? null : accounts.first;
 
   bool get hasAccounts => accounts.isNotEmpty;
 
   WalletSessionState copyWith({
     VaultStatus? status,
+    XendWallet? wallet,
     List<WalletAccount>? accounts,
     int? activeAccountIndex,
     Network? activeNetwork,
@@ -60,6 +61,7 @@ class WalletSessionState {
   }) {
     return WalletSessionState(
       status: status ?? this.status,
+      wallet: wallet ?? this.wallet,
       accounts: accounts ?? this.accounts,
       activeAccountIndex: activeAccountIndex ?? this.activeAccountIndex,
       activeNetwork: activeNetwork ?? this.activeNetwork,
@@ -71,128 +73,117 @@ class WalletSessionState {
   static const _sentinel = Object();
 }
 
-/// Provides the [WalletVault]. Override in tests with a fake-backed vault.
-final walletVaultProvider = Provider<WalletVault>((ref) {
-  return WalletVault(vault: SecureSeedVault());
-});
-
-/// Drives the wallet session: determines status, runs create/import/unlock,
-/// and exposes the current accounts/active selection to the UI.
+/// Drives the wallet session on top of the Xend SDK: load or silently recover on
+/// launch, create, import from a phrase, reveal the phrase, delete.
 final walletSessionProvider =
     StateNotifierProvider<WalletSessionNotifier, WalletSessionState>((ref) {
-  return WalletSessionNotifier(ref.watch(walletVaultProvider))..refresh();
+  return WalletSessionNotifier()..refresh();
 });
 
+/// The loaded wallet, or null before onboarding. Use for balance, send, history.
+final xendWalletProvider = Provider<XendWallet?>(
+  (ref) => ref.watch(walletSessionProvider.select((s) => s.wallet)),
+);
+
 class WalletSessionNotifier extends StateNotifier<WalletSessionState> {
-  WalletSessionNotifier(this._vault) : super(const WalletSessionState());
+  WalletSessionNotifier() : super(const WalletSessionState());
 
-  final WalletVault _vault;
+  static const _labelKey = 'nimbus.account_label.v1';
 
-  /// Determine whether a wallet exists; UI uses this to route to onboarding,
-  /// the unlock screen, or the home screen.
+  /// Load the wallet on this device, or recover it from the iCloud backup.
   Future<void> refresh() async {
     try {
-      final exists = await _vault.hasWallet();
-      state = state.copyWith(
-        status: exists
-            ? (_vault.isUnlocked ? VaultStatus.unlocked : VaultStatus.locked)
-            : VaultStatus.noWallet,
-      );
+      final wallet = await XendWallet.load();
+      state = wallet == null
+          ? const WalletSessionState(status: VaultStatus.noWallet)
+          : await _loaded(wallet);
     } catch (e, st) {
-      // Never strand the UI on the loader. Treat an unreadable vault as "no
-      // wallet" so onboarding can proceed, and surface the failure loudly.
+      // Never strand the UI on the loader.
       debugPrint('WalletSession.refresh failed: $e\n$st');
-      state = state.copyWith(status: VaultStatus.noWallet);
+      state = state.copyWith(status: VaultStatus.noWallet, error: _humanize(e));
     }
   }
 
-  Future<void> createWallet({
-    required String mnemonic,
-    required String passcode,
-  }) =>
-      _run(() async {
-        final accounts =
-            await _vault.createWallet(mnemonic: mnemonic, passcode: passcode);
-        return _unlockedState(accounts);
+  /// Create a wallet silently. No phrase is shown; it can be exported later.
+  Future<void> createWallet({String label = 'Account 1'}) => _run(() async {
+        final wallet = await XendWallet.create(label: label);
+        await _saveLabel(label);
+        return _loaded(wallet);
       });
 
-  Future<void> importWallet({
-    required String mnemonic,
-    required String passcode,
-  }) =>
-      _run(() async {
-        final accounts =
-            await _vault.importWallet(mnemonic: mnemonic, passcode: passcode);
-        return _unlockedState(accounts);
+  /// Restore from a 12/24-word recovery phrase.
+  Future<void> importWallet(String mnemonic) => _run(() async {
+        final wallet = await XendWallet.restore(mnemonic.trim());
+        return _loaded(wallet);
       });
 
-  Future<void> unlock(String passcode) => _run(() async {
-        final accounts = await _vault.unlock(passcode);
-        return _unlockedState(accounts);
-      });
-
-  void lock() {
-    _vault.lock();
-    state = state.copyWith(status: VaultStatus.locked, error: null);
+  /// The recovery phrase, behind Face ID.
+  Future<String> revealRecoveryPhrase() {
+    final wallet = state.wallet;
+    if (wallet == null) throw StateError('No wallet');
+    return wallet.revealRecoveryPhrase();
   }
 
-  Future<void> addAccount({String? label}) => _run(() async {
-        final account = await _vault.addAccount(label: label);
-        return state.copyWith(
-          accounts: [...state.accounts, account],
-          activeAccountIndex: account.index,
-          status: VaultStatus.unlocked,
-        );
-      });
-
-  /// Rename an account and update both storage and in-memory state.
   Future<void> renameAccount(int index, String label) async {
     final trimmed = label.trim();
     if (trimmed.isEmpty) return;
-    await _vault.renameAccount(index, trimmed);
+    await _saveLabel(trimmed);
     state = state.copyWith(
-      accounts: [
-        for (final a in state.accounts)
-          if (a.index == index) a.copyWith(label: trimmed) else a,
-      ],
+      accounts: [for (final a in state.accounts) a.copyWith(label: trimmed)],
     );
   }
-
-  /// Remove an account. If it was the active one, fall back to the first
-  /// remaining account so there's always a valid selection.
-  Future<void> removeAccount(int index) => _run(() async {
-        final accounts = await _vault.removeAccount(index);
-        final stillActive =
-            accounts.any((a) => a.index == state.activeAccountIndex);
-        return state.copyWith(
-          accounts: accounts,
-          activeAccountIndex:
-              stillActive ? state.activeAccountIndex : accounts.first.index,
-          status: VaultStatus.unlocked,
-        );
-      });
-
-  void selectAccount(int index) =>
-      state = state.copyWith(activeAccountIndex: index);
 
   void selectNetwork(Network network) =>
       state = state.copyWith(activeNetwork: network);
 
-  Future<void> deleteWallet() => _run(() async {
-        await _vault.deleteWallet();
+  /// Remove the wallet from this device. With [wipeBackup] the iCloud backup goes
+  /// too, and the wallet is gone unless the user saved the phrase.
+  Future<void> deleteWallet({bool wipeBackup = false}) => _run(() async {
+        await state.wallet?.delete(wipeBackup: wipeBackup);
         return const WalletSessionState(status: VaultStatus.noWallet);
       });
 
-  WalletSessionState _unlockedState(List<WalletAccount> accounts) =>
-      state.copyWith(
-        status: VaultStatus.unlocked,
-        accounts: accounts,
-        activeAccountIndex: accounts.isNotEmpty ? accounts.first.index : 0,
-        error: null,
-      );
+  Future<WalletSessionState> _loaded(XendWallet wallet) async {
+    final label = await _readLabel() ?? 'Account 1';
+    final account = WalletAccount(
+      index: 0,
+      label: label,
+      accountsByFamily: {
+        ChainFamily.solana: BlockchainAccount(
+          family: ChainFamily.solana,
+          address: wallet.address,
+          publicKeyHex: '',
+          derivationPath: "m/44'/501'/0'/0'",
+          accountIndex: 0,
+        ),
+      },
+    );
+    return state.copyWith(
+      status: VaultStatus.unlocked,
+      wallet: wallet,
+      accounts: [account],
+      activeAccountIndex: 0,
+      activeNetwork: Network.solana,
+      error: null,
+    );
+  }
 
-  /// Run an async action with busy/error bookkeeping. Rethrows so callers
-  /// (e.g. a passcode screen) can show inline feedback.
+  Future<String?> _readLabel() async {
+    try {
+      return (await SharedPreferences.getInstance()).getString(_labelKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveLabel(String label) async {
+    try {
+      await (await SharedPreferences.getInstance()).setString(_labelKey, label);
+    } catch (_) {}
+  }
+
+  /// Run an async action with busy/error bookkeeping. Rethrows so callers can show
+  /// inline feedback.
   Future<void> _run(Future<WalletSessionState> Function() action) async {
     state = state.copyWith(isBusy: true, error: null);
     try {
@@ -205,6 +196,7 @@ class WalletSessionNotifier extends StateNotifier<WalletSessionState> {
   }
 
   String _humanize(Object e) {
+    if (e is XendError) return e.message;
     final s = e.toString();
     final i = s.indexOf(': ');
     return i >= 0 ? s.substring(i + 2) : s;

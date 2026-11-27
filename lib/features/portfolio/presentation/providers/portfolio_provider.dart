@@ -3,16 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../wallet/domain/entities/chain_family.dart';
+import 'package:xend/xend.dart';
+
 import '../../../wallet/domain/entities/network.dart';
 import '../../../wallet/domain/entities/network_cluster.dart';
 import '../../../wallet/domain/entities/wallet_account.dart';
 import '../../../wallet/presentation/providers/wallet_session.dart';
-import '../../data/balance_service.dart';
 import '../../data/binance_price_stream.dart';
 import '../../data/portfolio_cache.dart';
 import '../../data/price_service.dart';
-import '../../data/solana_account_stream.dart';
 import 'network_cluster_provider.dart';
 
 /// One network's slice of the portfolio.
@@ -69,7 +68,7 @@ class PortfolioEntry {
       );
 }
 
-/// The whole multi-chain portfolio for one account at a moment in time.
+/// The portfolio for one account at a moment in time.
 class Portfolio {
   const Portfolio({required this.entries, this.updatedAt});
   final List<PortfolioEntry> entries;
@@ -113,36 +112,32 @@ class Portfolio {
       );
 }
 
-final balanceServiceProvider = Provider((ref) => BalanceService());
 final priceServiceProvider = Provider((ref) => PriceService());
 final binancePriceStreamProvider = Provider((ref) => BinancePriceStream());
 final portfolioCacheProvider = Provider((ref) => PortfolioCache());
-final solanaAccountStreamProvider =
-    Provider((ref) => const SolanaAccountStream());
 
-/// Live native-asset prices via the Binance WebSocket (sub-second updates).
+/// Networks the wallet actually holds. Xend is Solana only, so other chains are
+/// left out rather than shown with a zero balance.
+const walletNetworks = [Network.solana];
+
+/// Live native-asset prices via the Binance WebSocket.
 final livePricesProvider =
     StreamProvider.autoDispose<Map<Network, PriceInfo>>((ref) {
-  return ref.watch(binancePriceStreamProvider).watch(Network.values);
+  return ref.watch(binancePriceStreamProvider).watch(walletNetworks);
 });
 
-/// Realtime portfolio for the active account. Balances are polled; prices come
-/// live from the Binance WebSocket (with a CoinGecko REST bootstrap/fallback so
-/// values appear instantly and survive a blocked socket). Rebuilds when the
-/// active account changes.
+/// Portfolio for the active account. Balances come from the Xend wallet and are
+/// polled; prices come from Binance (CoinGecko until the socket is up).
 final portfolioProvider = StateNotifierProvider.autoDispose<PortfolioNotifier,
     AsyncValue<Portfolio>>((ref) {
   final account = ref.watch(walletSessionProvider.select((s) => s.activeAccount));
-  final cluster = ref.watch(networkClusterProvider);
   final notifier = PortfolioNotifier(
-    balances: ref.watch(balanceServiceProvider),
+    wallet: ref.watch(xendWalletProvider),
     prices: ref.watch(priceServiceProvider),
     cache: ref.watch(portfolioCacheProvider),
-    solanaStream: ref.watch(solanaAccountStreamProvider),
     account: account,
-    cluster: cluster,
+    cluster: ref.watch(networkClusterProvider),
   );
-  // Forward live WebSocket prices into the notifier as they arrive.
   ref.listen<AsyncValue<Map<Network, PriceInfo>>>(
     livePricesProvider,
     (_, next) => notifier.applyLivePrices(next.valueOrNull),
@@ -154,95 +149,70 @@ final portfolioProvider = StateNotifierProvider.autoDispose<PortfolioNotifier,
 
 class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
   PortfolioNotifier({
-    required BalanceService balances,
+    required XendWallet? wallet,
     required PriceService prices,
     required PortfolioCache cache,
-    required SolanaAccountStream solanaStream,
     required this.account,
     required this.cluster,
-  })  : _balances = balances,
+  })  : _wallet = wallet,
         _priceService = prices,
         _cache = cache,
-        _solanaStream = solanaStream,
         super(const AsyncValue.loading());
 
-  final BalanceService _balances;
+  final XendWallet? _wallet;
   final PriceService _priceService;
   final PortfolioCache _cache;
-  final SolanaAccountStream _solanaStream;
   final WalletAccount? account;
   final NetworkCluster cluster;
 
-  static const _interval = Duration(seconds: 20);
-  static const _networks = Network.values;
+  static const _interval = Duration(seconds: 15);
   Timer? _timer;
-  StreamSubscription<({double sol, int slot})>? _solanaSub;
 
   /// Latest known price per network (from WS once live, else CoinGecko).
   final Map<Network, PriceInfo> _prices = {};
 
-  /// True once the WebSocket has delivered prices; we then stop pulling
-  /// CoinGecko so the two sources don't fight over the value.
+  /// Set once the WebSocket delivers prices, so CoinGecko stops being polled.
   bool _liveActive = false;
 
-  /// The freshest Solana balance we've accepted and the slot it came from. Both
-  /// the poll and the realtime WS feed through [_acceptSolana]; a lower slot
-  /// never overwrites a higher one, so the balance can't regress to an older
-  /// on-chain state (e.g. a lagging poll reverting a realtime push).
-  double? _solanaAmount;
-  int _solanaSlot = -1;
-
   void start() {
-    if (account == null) {
+    if (account == null || _wallet == null) {
       state = const AsyncValue.data(Portfolio(entries: []));
       return;
     }
     _bootstrap();
     _timer = Timer.periodic(_interval, (_) => _load());
-    _watchSolana();
   }
 
-  /// Subscribe to realtime Solana balance pushes so incoming SOL appears at
-  /// once, without waiting for the next poll. The poll still covers the other
-  /// chains; if the socket is down, balances stay correct via the poll.
-  void _watchSolana() {
-    final address = account?.account(ChainFamily.solana)?.address;
-    if (address == null) return;
-    _solanaSub = _solanaStream
-        .watch(address: address, cluster: cluster)
-        .listen((u) => applySolanaBalance(u.sol, u.slot));
-  }
-
-  /// Show the cached snapshot immediately (no skeleton on relaunch), then
-  /// refresh in the background.
+  /// Show the cached snapshot right away, then refresh.
   Future<void> _bootstrap() async {
     final cached = await _cache.load(account!.index, cluster.id);
     if (cached != null && mounted) {
       try {
         final portfolio = Portfolio.fromJson(cached);
-        for (final e in portfolio.entries) {
+        final entries = [
+          for (final e in portfolio.entries)
+            if (walletNetworks.contains(e.network)) e,
+        ];
+        for (final e in entries) {
           if (e.usdPrice != null) {
             _prices[e.network] = PriceInfo(usd: e.usdPrice!, change24h: e.change24h);
           }
         }
-        state = AsyncValue.data(portfolio);
+        state = AsyncValue.data(
+            Portfolio(entries: entries, updatedAt: portfolio.updatedAt));
       } catch (_) {
-        // Corrupt cache — ignore and load fresh.
+        // Bad cache, load fresh.
       }
     }
     await _load();
   }
 
-  void stop() {
-    _timer?.cancel();
-    _solanaSub?.cancel();
-  }
+  void stop() => _timer?.cancel();
 
-  /// Manual refresh (pull-to-refresh) — re-fetches balances.
+  /// Re-fetch balances now (pull-to-refresh, after a send).
   Future<void> refresh() => _load();
 
-  /// Apply a live price tick from the Binance WebSocket: update prices in place
-  /// without re-fetching balances, so the total moves in realtime.
+  /// Apply a live price tick without re-fetching balances.
   void applyLivePrices(Map<Network, PriceInfo>? prices) {
     if (prices == null || prices.isEmpty) return;
     _liveActive = true;
@@ -255,82 +225,66 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<Portfolio>> {
     ));
   }
 
-  /// Apply a realtime Solana balance push: update the Solana entry's amount in
-  /// place (keeping its live price) so the total reflects incoming funds the
-  /// moment they confirm — no manual refresh needed.
-  void applySolanaBalance(double sol, int slot) {
-    if (!_acceptSolana(sol, slot)) return; // ignore an out-of-order frame
-    final current = state.valueOrNull;
-    if (current == null || !mounted) return;
-    if (!current.entries.any((e) => e.network == Network.solana)) return;
-    state = AsyncValue.data(Portfolio(
-      entries: [
-        for (final e in current.entries)
-          e.network == Network.solana ? e.copyWith(amount: sol) : e,
-      ],
-      updatedAt: DateTime.now(),
-    ));
-  }
-
-  /// Record [sol] as the current Solana balance only if [slot] is newer than
-  /// the last one accepted; returns whether it won. Shared by the poll and the
-  /// realtime WS so neither can revert to an older slot.
-  bool _acceptSolana(double sol, int slot) {
-    if (slot <= _solanaSlot) return false;
-    _solanaSlot = slot;
-    _solanaAmount = sol;
-    return true;
-  }
-
   Future<void> _load() async {
     final acct = account;
-    if (acct == null) return;
+    final wallet = _wallet;
+    if (acct == null || wallet == null) return;
 
-    // Resolve the address for each network from its chain family.
-    final targets = <Network, String>{};
-    for (final n in _networks) {
-      final a = acct.account(n.family);
-      if (a != null) targets[n] = a.address;
-    }
+    // Balance first. A slow or unreachable price API must never hold it back.
+    final entry = await _solanaEntry(wallet);
+    if (!mounted) return;
+    _publish(acct, entry);
 
-    // Fetch balances per-network independently so one failing chain doesn't
-    // sink the others.
-    final balanceFutures = targets.entries.map((e) async {
-      try {
-        final b = await _balances.fetch(e.key, e.value, cluster);
-        var amount = b.amount;
-        // Keep Solana monotonic by slot: a stale poll can't revert a newer
-        // realtime push, but a recovering poll takes back over if the WS drops.
-        if (e.key == Network.solana && b.slot != null) {
-          _acceptSolana(b.amount, b.slot!);
-          amount = _solanaAmount ?? b.amount;
-        }
-        return PortfolioEntry(network: e.key, address: e.value, amount: amount);
-      } catch (err) {
-        debugPrint('balance ${e.key.id} failed: $err');
-        return PortfolioEntry(network: e.key, address: e.value, error: 'unavailable');
-      }
-    }).toList();
-
-    // Bootstrap prices from REST until the WebSocket takes over.
     if (!_liveActive) {
       try {
-        _prices.addAll(await _priceService.fetchPrices(targets.keys.toList()));
+        _prices.addAll(await _priceService
+            .fetchPrices(walletNetworks)
+            .timeout(const Duration(seconds: 8)));
       } catch (e) {
         debugPrint('prices failed: $e');
+        return;
       }
+      if (!mounted) return;
+      _publish(acct, entry);
     }
+  }
 
-    final entries = await Future.wait(balanceFutures);
-    if (!mounted) return;
+  void _publish(WalletAccount acct, PortfolioEntry entry) {
+    // On a failed read keep the last good amount instead of blanking the row.
+    final previous = state.valueOrNull?.entries
+        .where((e) => e.network == Network.solana)
+        .firstOrNull;
+    final shown = entry.error != null && previous?.amount != null
+        ? previous!
+        : entry;
     final portfolio = Portfolio(
-      entries: [for (final e in entries) _priced(e)],
+      entries: [_priced(shown)],
       updatedAt: DateTime.now(),
     );
     state = AsyncValue.data(portfolio);
-    // Persist the snapshot so the next launch shows it instantly.
-    unawaited(_cache.save(acct.index, cluster.id, portfolio.toJson()));
+    if (entry.error == null) {
+      unawaited(_cache.save(acct.index, cluster.id, portfolio.toJson()));
+    }
   }
+
+  Future<PortfolioEntry> _solanaEntry(XendWallet wallet) async {
+    const network = Network.solana;
+    try {
+      final b = await wallet.balance();
+      return PortfolioEntry(
+        network: network,
+        address: wallet.address,
+        amount: _toUnits(b.amount, network.nativeDecimals),
+      );
+    } catch (e) {
+      debugPrint('balance solana failed: $e');
+      return PortfolioEntry(
+          network: network, address: wallet.address, error: 'unavailable');
+    }
+  }
+
+  static double _toUnits(BigInt raw, int decimals) =>
+      raw / BigInt.from(10).pow(decimals);
 
   /// Attach the cached price/change to a balance entry.
   PortfolioEntry _priced(PortfolioEntry e) {
